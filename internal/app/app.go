@@ -102,6 +102,13 @@ type app struct {
 	settingPending map[string]*settingWrite     // last queued value per source/key
 
 	trackList ui.ListState
+	// selList is the choosing list of a page's songs (trackRows), apart from
+	// trackList which browse scrolls without choosing. trackSel are the songs
+	// chosen, by their keys, for the batch bar; pageTracks is the list they
+	// are chosen from.
+	selList    ui.ListState
+	trackSel   ui.Selection[int]
+	pageTracks []music.Track
 	// Where the page and the sidebar are scrolled, kept while Now Playing
 	// covers them, unbuilt.
 	pageScroll ui.ScrollState

@@ -79,7 +79,7 @@ func (a *app) homePage(c *ui.Context) {
 			ui.Box(c).PaddingX(12).Children(func() { a.section(c, T("Recently Played")).Margin(0, 0, 8, 0) })
 			recent := lib.recent[:min(len(lib.recent), 8)]
 			for i := range recent {
-				a.trackRow(c, recent, i, true, "")
+				a.trackRow(c, recent, i, true, "", ui.ListRow{}, false)
 			}
 		}
 		lists := append(append([]music.Playlist(nil), lib.mine...), lib.saved...)
@@ -444,7 +444,8 @@ func (a *app) freshenLiked(lib *library) {
 }
 
 // trackRows lists tracks under a header, which scrolls with them; a click
-// plays the list from the track clicked.
+// plays the list from the track clicked, and Ctrl/Shift-click or the row's
+// checkbox chooses several for the batch bar to act on.
 func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header func(c *ui.Context), footer ...func(c *ui.Context)) {
 	// A song's menu can take it out of the playlist it is listed in.
 	var pid string
@@ -456,23 +457,36 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 	// scrolled away from its start or end has content under the bars.
 	a.underTop, a.underBottom = true, true
 	rows := len(tracks) + 1 + len(footer)
-	ui.List(c.Key(a.route), &a.trackList, rows, func(i int) {
-		if i == 0 {
-			ui.Column(c).Children(func() {
-				a.startMark(c)
-				header(c)
-			})
-			return
+	a.pageTracks = tracks
+	a.selList.Label = func(i int) string {
+		if i >= 1 && i <= len(tracks) {
+			return tracks[i-1].Name
 		}
-		if i == rows-1 {
-			defer a.endMark(c)
-		}
-		if i > len(tracks) {
-			footer[i-len(tracks)-1](c)
-			return
-		}
-		a.trackRow(c, tracks, i-1, covers, pid)
-	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
+		return ""
+	}
+	// The header and the foot are not songs to choose.
+	a.selList.Header = func(i int) bool { return i == 0 || i > len(tracks) }
+	a.selList.Selection = &a.trackSel
+	ui.List(c.Key(a.route), &a.selList, rows).
+		Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).
+		Rows(func(r ui.ListRow) {
+			i := r.Index
+			if i == 0 {
+				ui.Column(c).Children(func() {
+					a.startMark(c)
+					header(c)
+				})
+				return
+			}
+			if i == rows-1 {
+				defer a.endMark(c)
+			}
+			if i > len(tracks) {
+				footer[i-len(tracks)-1](c)
+				return
+			}
+			a.trackRow(c, tracks, i-1, covers, pid, r, true)
+		})
 }
 
 // sameTrack reports whether two tracks are one: IDs are their source's.
@@ -481,8 +495,9 @@ func sameTrack(x, y *music.Track) bool {
 }
 
 // trackRow is a row of the list tracks, its track i, which plays the list from
-// there as it's clicked.
-func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, pid string) {
+// there as it's clicked, and is chosen for the batch bar as its checkbox or a
+// Ctrl/Shift-click chooses it.
+func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, pid string, r ui.ListRow, inList bool) {
 	p := a.pal
 	tr := &tracks[i]
 	lib := a.trackLib(tr)
@@ -490,7 +505,11 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 	// An album's page has no column of the album its songs are on.
 	wide := w-sidebarWidth > 820 && a.route.page != pageAlbum
 	playing := sameTrack(a.pl.Current(), tr)
-	row := ui.ButtonBase(c.Key(tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
+	// The list chooses by row: track i is row i+1, below the header.
+	k := i + 1
+	// The row itself takes the click, which chooses it; the content reads the
+	// click to play, leaving the choosing to the row.
+	row := ui.Row(c).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).
 		ContextMenu(a.songItems(tr, pid))
 	hovered := row.Hovered()
 	bg := ui.Transparent
@@ -508,6 +527,15 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 	row.Children(func() {
 		ui.Box(c).Width(26).Center().Children(func() {
 			switch {
+			case a.trackSel.Len() >= 2 || r.Selected():
+				checked := a.trackSel.Has(k)
+				ui.Checkbox(c.Key("sel"), &checked, T("Select")).OnClick(func() {
+					if checked {
+						a.trackSel.Add(k)
+					} else {
+						a.trackSel.Remove(k)
+					}
+				})
 			case playing:
 				a.nowPlayingBars(c)
 			case hovered && !tr.Unavailable:
@@ -530,7 +558,7 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 		if wide {
 			album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(12.5).TextColor(p.muted).SingleLine()
 			album.Children(func() {
-				if tr.Album.ID == "" || !a.trackLib(tr).can("album") {
+				if tr.Album.ID == "" || !lib.can("album") {
 					ui.Text(c, tr.Album.Name)
 				} else {
 					a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, src: tr.Source, id: tr.Album.ID})
@@ -559,7 +587,15 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 		}
 		ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
 	})
-	if row.Clicked() && !tr.Unavailable {
+	// In a list the click chooses the row and plays; on the home's scroll,
+	// where no list chooses, the row takes the click itself.
+	var play bool
+	if inList {
+		play = row.RowClicked()
+	} else {
+		play = row.Clicked()
+	}
+	if play && !tr.Unavailable {
 		a.pl.PlayTrack(tracks, i)
 	}
 }

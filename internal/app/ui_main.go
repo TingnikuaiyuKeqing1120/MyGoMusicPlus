@@ -68,6 +68,7 @@ func (a *app) view(c *ui.Context) {
 				// positioned, they paint over it.
 				a.pageTop(c)
 				a.playerBar(c)
+				a.batchBar(c)
 			})
 		})
 		a.nowPlayingLayer(c, npOpen, npSettled)
@@ -133,6 +134,7 @@ func (a *app) show(r route) {
 	}
 	a.activate(lib)
 	a.route = r
+	a.trackSel.Clear()
 	if r.page == pageSearch {
 		a.query, a.searched = r.query, r
 	}
