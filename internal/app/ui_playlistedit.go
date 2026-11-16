@@ -392,6 +392,33 @@ func (a *app) playlistItems(m *ui.Menu, tr *music.Track, pid string) {
 	}
 }
 
+// quickAddMenu is the menu of the add button on a song's row: a new playlist,
+// or one of the listener's to put tr in, but pid, the one it is listed in.
+func (a *app) quickAddMenu(m *ui.Menu, tr *music.Track, pid string) {
+	lib := a.trackLib(tr)
+	if lib.signedOut() || !lib.can("addToPlaylist") {
+		return
+	}
+	creating := lib.can("createPlaylist") && lib == a.library
+	if creating && m.Item(T("New Playlist…")).Chosen() {
+		a.newPlaylist(tr)
+	}
+	var to []*music.Playlist
+	for i := range lib.mine {
+		if pl := &lib.mine[i]; pl.ID != pid && !pl.Fixed {
+			to = append(to, pl)
+		}
+	}
+	if creating && len(to) > 0 {
+		m.Separator()
+	}
+	for _, pl := range to {
+		if m.Item(pl.Name).Chosen() {
+			a.addTo(lib, pl.ID, tr)
+		}
+	}
+}
+
 // playlistNameDialog asks for the name of a playlist to make, or a new
 // name for one.
 func (a *app) playlistNameDialog(c *ui.Context) {

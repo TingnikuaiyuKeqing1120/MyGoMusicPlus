@@ -162,6 +162,7 @@ type app struct {
 	settings    settings
 	settingsWin *mygo.Window
 	cacheUsed   int64 // the bytes the song cache takes, -1 until measured
+	cacheCount  int64 // the songs the cache keeps, until measured
 	updates     bool  // the update plugin is used (useUpdater)
 
 	restored     bool   // playback picked up where it was left

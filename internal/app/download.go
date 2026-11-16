@@ -1,6 +1,7 @@
 package app
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -37,6 +38,87 @@ func (a *app) canDownload(tr *music.Track) bool {
 	lib := a.trackLib(tr)
 	return lib != nil && lib.id != local.ID && lib.can("stream") &&
 		lib.src.Info().Playback == music.PlaybackStream && !tr.Unavailable
+}
+
+// canDownloadAny reports whether any of tracks can be saved to a file.
+func (a *app) canDownloadAny(tracks []music.Track) bool {
+	for i := range tracks {
+		if a.canDownload(&tracks[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+// pickFolder asks the listener for one folder to save songs into, and calls
+// got with it on the main thread if they pick one. It blocks, so it runs on a
+// goroutine; tests replace it.
+var pickFolder = func(a *app, got func(string)) {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Title:             T("Download All"),
+			ButtonLabel:       T("Download"),
+			Directory:         true,
+			CreateDirectories: true,
+		})
+		if err == nil && len(paths) > 0 {
+			a.post(func() { got(paths[0]) })
+		}
+	}()
+}
+
+// downloadAll saves copies of tracks into one folder the listener picks, at
+// the quality the settings say, from the cache if kept there. A song listed
+// twice is saved once, and one already in the folder is left as it is. Toasts
+// say how it goes.
+func (a *app) downloadAll(tracks []music.Track) {
+	lib := a.library
+	quality := a.settings.Quality
+	var list []music.Track
+	seen := map[string]bool{}
+	for _, tr := range tracks {
+		if !seen[tr.ID] && a.canDownload(&tr) {
+			seen[tr.ID] = true
+			list = append(list, tr)
+		}
+	}
+	if len(list) == 0 {
+		return
+	}
+	pickFolder(a, func(dir string) {
+		a.toast = T("Downloading…")
+		go func() {
+			saved, failed := 0, 0
+			for i, tr := range list {
+				ok := true
+				song, err := a.pl.FindSong(lib.src, tr, quality)
+				if err != nil {
+					ok = false
+				} else {
+					path := filepath.Join(dir, songFileName(&tr, song.Type))
+					if _, statErr := os.Stat(path); statErr == nil {
+						song.Close()
+					} else if saveErr := song.SaveTo(path); saveErr != nil {
+						ok = false
+					}
+				}
+				if ok {
+					saved++
+				} else {
+					failed++
+				}
+				n := i + 1
+				a.post(func() { a.toast = Tf("Downloading %d / %d", n, len(list)) })
+			}
+			a.post(func() {
+				if failed > 0 {
+					a.toast = Tf("Downloaded %d songs (%d failed)", saved, failed)
+				} else {
+					a.toast = Tf("Downloaded %d songs", saved)
+				}
+			})
+		}()
+	})
 }
 
 // download saves a copy of tr where the listener picks, at the quality the

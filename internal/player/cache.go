@@ -23,7 +23,8 @@ type Cache struct {
 	dir string
 
 	mu    sync.Mutex
-	limit int64 // in bytes; 0 keeps nothing
+	limit int64           // in bytes; 0 keeps nothing
+	keys  map[string]bool // the keys of the songs kept, read once then kept up to date
 }
 
 // NewCache returns a cache in dir of limit bytes.
@@ -50,6 +51,70 @@ func cacheKey(source, id, quality string) string {
 // name its file, so only those known, which keep it in the cache's folder.
 func keepable(quality, ext string) bool {
 	return slices.Contains(music.Qualities, quality) && slices.Contains(songTypes, ext)
+}
+
+// keyOf is the key a kept song's file is named by, without its type.
+func keyOf(path string) string {
+	base := filepath.Base(path)
+	return strings.TrimSuffix(base, filepath.Ext(base))
+}
+
+// loadKeys reads the keys of the songs kept, once; the caller holds mu. keep
+// and remove keep them up to date from then on, so the views may ask whether a
+// song is kept without touching the disk each time they draw.
+func (c *Cache) loadKeys() {
+	if c.keys != nil {
+		return
+	}
+	c.keys = map[string]bool{}
+	entries, _ := os.ReadDir(c.dir)
+	for _, e := range entries {
+		ext := filepath.Ext(e.Name())
+		if ext != "" && slices.Contains(songTypes, ext[1:]) {
+			c.keys[keyOf(e.Name())] = true
+		}
+	}
+}
+
+// Cached reports whether a song is kept at quality or a better one, from the
+// keys in memory: for a view to mark a song offline as it draws.
+func (c *Cache) Cached(source, id, quality string) bool {
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.loadKeys()
+	at := max(slices.Index(music.Qualities, quality), 0)
+	for _, q := range music.Qualities[at:] {
+		if c.keys[cacheKey(source, id, q)] {
+			return true
+		}
+	}
+	return false
+}
+
+// Count returns how many songs are kept.
+func (c *Cache) Count() int {
+	if c == nil {
+		return 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.loadKeys()
+	return len(c.keys)
+}
+
+// Refresh reads the keys anew, for what may have changed on disk outside the
+// cache's own keeping.
+func (c *Cache) Refresh() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.keys = nil
+	c.loadKeys()
 }
 
 // lookup returns a song kept at quality or a better one, open to read, with
@@ -173,6 +238,10 @@ func (c *Cache) keep(source, id, quality string, st *music.Stream, part string, 
 		return part, false
 	}
 	os.WriteFile(filepath.Join(c.dir, key+".json"), meta, 0o600)
+	c.mu.Lock()
+	c.loadKeys()
+	c.keys[key] = true
+	c.mu.Unlock()
 	c.prune(path)
 	return path, true
 }
@@ -188,6 +257,8 @@ func (c *Cache) Size() int64 {
 
 // Clear drops every song kept.
 func (c *Cache) Clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for _, f := range c.songs() {
 		c.remove(f.path)
 	}
@@ -216,9 +287,13 @@ func (c *Cache) songs() []cachedSong {
 	return out
 }
 
+// remove drops a song's files; the caller holds mu.
 func (c *Cache) remove(path string) {
 	os.Remove(path)
 	os.Remove(strings.TrimSuffix(path, filepath.Ext(path)) + ".json")
+	if c.keys != nil {
+		delete(c.keys, keyOf(path))
+	}
 }
 
 // prune drops the songs played longest ago until the rest fit the limit,

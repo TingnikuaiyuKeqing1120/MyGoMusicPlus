@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"mygo-music/internal/music"
 	"mygo-music/internal/player"
 )
 
@@ -37,9 +38,12 @@ func (a *app) measureCache() {
 		return
 	}
 	go func() {
+		cache.Refresh()
 		n := cache.Size()
+		count := int64(cache.Count())
 		a.post(func() {
 			a.cacheUsed = n
+			a.cacheCount = count
 			if a.settingsWin != nil {
 				a.settingsWin.Invalidate()
 			}
@@ -50,6 +54,7 @@ func (a *app) measureCache() {
 func (a *app) clearCache() {
 	if cache := a.pl.Cache; cache != nil {
 		a.cacheUsed = 0
+		a.cacheCount = 0
 		go func() {
 			cache.Clear()
 			a.measureCache()
@@ -57,14 +62,23 @@ func (a *app) clearCache() {
 	}
 }
 
-// cacheUsage says how much the cache takes, once measured.
+// isOffline reports whether tr is kept in the song cache, to play without the
+// network, at the quality the settings say or a better one.
+func (a *app) isOffline(tr *music.Track) bool {
+	return a.pl.Cache.Cached(tr.Source, tr.ID, a.settings.Quality)
+}
+
+// cacheUsage says how many songs the cache keeps and how much they take, once
+// measured.
 func (a *app) cacheUsage() string {
-	switch n := a.cacheUsed; {
-	case n < 0:
+	if a.cacheUsed < 0 {
 		return T("Measuring the space used…")
-	case n >= 1<<30:
-		return Tf("%.1f GB used", float64(n)/(1<<30))
-	default:
-		return Tf("%d MB used", n>>20)
 	}
+	var size string
+	if a.cacheUsed >= 1<<30 {
+		size = Tf("%.1f GB used", float64(a.cacheUsed)/(1<<30))
+	} else {
+		size = Tf("%d MB used", a.cacheUsed>>20)
+	}
+	return Tf("%d songs · %s", a.cacheCount, size)
 }

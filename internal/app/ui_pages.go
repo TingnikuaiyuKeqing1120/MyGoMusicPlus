@@ -293,6 +293,11 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 			}
 			ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
 				a.playButtons(c, pl.Tracks)
+				if a.canDownloadAny(pl.Tracks) {
+					if pillButton(c.Key("download-all"), iconDownload, T("Download All"), p.hover.Over(p.bg), p.text).Clicked() {
+						a.downloadAll(pl.Tracks)
+					}
+				}
 				if a.savable(pl) {
 					icon, label := iconPlus, TC("Save", "library")
 					if a.isSaved(pl) {
@@ -342,7 +347,14 @@ func (a *app) likedPage(c *ui.Context) {
 					ui.Text(c, i18n.Songs(len(lib.likedList))).FontSize(13).TextColor(p.muted)
 				}
 				if len(lib.likedList) > 0 {
-					ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() { a.playButtons(c, lib.likedList) })
+					ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
+						a.playButtons(c, lib.likedList)
+						if a.canDownloadAny(lib.likedList) {
+							if pillButton(c.Key("download-all"), iconDownload, T("Download All"), p.hover.Over(p.bg), p.text).Clicked() {
+								a.downloadAll(lib.likedList)
+							}
+						}
+					})
 				}
 			})
 		})
@@ -473,6 +485,7 @@ func sameTrack(x, y *music.Track) bool {
 func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, pid string) {
 	p := a.pal
 	tr := &tracks[i]
+	lib := a.trackLib(tr)
 	w, _ := c.Size()
 	// An album's page has no column of the album its songs are on.
 	wide := w-sidebarWidth > 820 && a.route.page != pageAlbum
@@ -524,12 +537,26 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 				}
 			})
 		}
+		// A way to put the song in one of the listener's playlists, where the
+		// source takes them and they're signed in to it.
+		if lib.can("addToPlaylist") && !lib.signedOut() {
+			ui.Box(c).Size(32, 32).Center().Children(func() {
+				b := iconButton(c.Key("add"), iconPlus, 15, p.muted, T("Add to Playlist"))
+				b.Menu(func(m *ui.Menu) { a.quickAddMenu(m, tr, pid) })
+			})
+		}
 		// A liked song's heart shows; the others' as the pointer is on them.
 		ui.Box(c).Size(32, 32).Center().Children(func() {
 			if a.isLiked(tr) || hovered {
 				a.likeButton(c.Key("like"), tr, 15, p.muted)
 			}
 		})
+		// A song kept in the cache plays without the network: marked so.
+		offline := ui.Box(c).Width(20).Center()
+		if a.isOffline(tr) {
+			offline.Label(T("Offline"))
+			offline.Children(func() { ui.Icon(c, iconDatabase).Size(13, 13).TextColor(p.faint) })
+		}
 		ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
 	})
 	if row.Clicked() && !tr.Unavailable {
