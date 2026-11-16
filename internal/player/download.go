@@ -1,6 +1,7 @@
 package player
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -67,16 +68,37 @@ func (s *Song) Close() {
 	}
 }
 
+// Size returns how many bytes the song is, as its stream said or its file
+// measures, or 0 if neither says.
+func (s *Song) Size() int64 {
+	if s.file != nil {
+		if info, err := s.file.Stat(); err == nil {
+			return info.Size()
+		}
+		return 0
+	}
+	if s.st != nil {
+		return s.st.Size
+	}
+	return 0
+}
+
 // SaveTo writes the song to path, in place of what's there, and closes it. It
 // comes into a file of its own beside path first, so one cut short leaves path
 // as it was.
 func (s *Song) SaveTo(path string) error {
+	return s.SaveToContext(context.Background(), path, nil)
+}
+
+// SaveToContext is SaveTo that ctx can cut short, and progress tells how many
+// bytes have come in as they do, for a download manager to show and cancel.
+func (s *Song) SaveToContext(ctx context.Context, path string, progress func(int64)) error {
 	defer s.Close()
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*.part")
 	if err != nil {
 		return err
 	}
-	err = s.copy(tmp)
+	err = s.copy(ctx, &progressWriter{w: tmp, ctx: ctx, cb: progress})
 	if cerr := tmp.Close(); err == nil {
 		err = cerr
 	}
@@ -89,13 +111,34 @@ func (s *Song) SaveTo(path string) error {
 	return err
 }
 
-// copy writes all of the song to w.
-func (s *Song) copy(w io.Writer) error {
+// progressWriter writes to w, counting the bytes and telling progress, and
+// stops as ctx is canceled.
+type progressWriter struct {
+	w   io.Writer
+	ctx context.Context
+	n   int64
+	cb  func(int64)
+}
+
+func (p *progressWriter) Write(b []byte) (int, error) {
+	if err := p.ctx.Err(); err != nil {
+		return 0, err
+	}
+	n, err := p.w.Write(b)
+	p.n += int64(n)
+	if p.cb != nil {
+		p.cb(p.n)
+	}
+	return n, err
+}
+
+// copy writes all of the song to w, as ctx allows.
+func (s *Song) copy(ctx context.Context, w io.Writer) error {
 	if s.file != nil {
 		_, err := io.Copy(w, s.file)
 		return err
 	}
-	req, err := http.NewRequest("GET", s.st.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", s.st.URL, nil)
 	if err != nil {
 		return err
 	}

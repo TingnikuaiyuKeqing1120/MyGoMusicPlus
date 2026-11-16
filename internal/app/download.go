@@ -1,7 +1,6 @@
 package app
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -69,8 +68,8 @@ var pickFolder = func(a *app, got func(string)) {
 
 // downloadAll saves copies of tracks into one folder the listener picks, at
 // the quality the settings say, from the cache if kept there. A song listed
-// twice is saved once, and one already in the folder is left as it is. Toasts
-// say how it goes.
+// twice is saved once, and one already in the folder is left as it is. The
+// download manager shows each one's progress, and a toast tells of them all.
 func (a *app) downloadAll(tracks []music.Track) {
 	lib := a.library
 	quality := a.settings.Quality
@@ -86,43 +85,14 @@ func (a *app) downloadAll(tracks []music.Track) {
 		return
 	}
 	pickFolder(a, func(dir string) {
-		a.toast = T("Downloading…")
-		go func() {
-			saved, failed := 0, 0
-			for i, tr := range list {
-				ok := true
-				song, err := a.pl.FindSong(lib.src, tr, quality)
-				if err != nil {
-					ok = false
-				} else {
-					path := filepath.Join(dir, songFileName(&tr, song.Type))
-					if _, statErr := os.Stat(path); statErr == nil {
-						song.Close()
-					} else if saveErr := song.SaveTo(path); saveErr != nil {
-						ok = false
-					}
-				}
-				if ok {
-					saved++
-				} else {
-					failed++
-				}
-				n := i + 1
-				a.post(func() { a.toast = Tf("Downloading %d / %d", n, len(list)) })
-			}
-			a.post(func() {
-				if failed > 0 {
-					a.toast = Tf("Downloaded %d songs (%d failed)", saved, failed)
-				} else {
-					a.toast = Tf("Downloaded %d songs", saved)
-				}
-			})
-		}()
+		a.downloads.addBatch(a, lib, quality, list, dir)
+		a.downloads.open = true
 	})
 }
 
 // download saves a copy of tr where the listener picks, at the quality the
-// settings say, from the cache if it's kept there; toasts say how it goes.
+// settings say, from the cache if it's kept there; the download manager shows
+// its progress, and a toast tells when it lands.
 func (a *app) download(tr music.Track) {
 	lib := a.trackLib(&tr)
 	quality := a.settings.Quality
@@ -137,14 +107,9 @@ func (a *app) download(tr music.Track) {
 			song.Close()
 			return
 		}
-		a.post(func() { a.toast = T("Downloading…") })
-		err = song.SaveTo(path)
 		a.post(func() {
-			if err != nil {
-				a.actionFailed(lib, err, T("Couldn't download this song"))
-				return
-			}
-			a.toast = Tf("Downloaded %s", tr.Name)
+			a.downloads.add(a, &dlJob{track: tr, path: path, song: song, lib: lib, quality: quality})
+			a.downloads.open = true
 		})
 	}()
 }

@@ -179,6 +179,7 @@ func (a *app) trackLib(tr *music.Track) *library {
 // The others are asked once they're needed: a plugin runs from when it's first
 // asked.
 func (a *app) boot() {
+	a.downloads.load()
 	a.keepCheckingPlugins()
 	a.startLibrary(a.library)
 	a.restoreSession()

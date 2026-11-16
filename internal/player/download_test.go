@@ -2,6 +2,7 @@ package player
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -102,6 +103,56 @@ func TestSaveSongCutShort(t *testing.T) {
 	}
 	if err := song.SaveTo(path); err == nil {
 		t.Error("saved a song cut short")
+	}
+	if b, _ := os.ReadFile(path); string(b) != "before" {
+		t.Errorf("left %q", b)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Errorf("left %v", entries)
+	}
+}
+
+// Saving tells how many bytes have come in, and a canceled context cuts the
+// save short, leaving the file it was to replace as it was.
+func TestSaveSongProgressAndCancel(t *testing.T) {
+	audio := bytes.Repeat([]byte("song"), 4096)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", strconv.Itoa(len(audio)))
+		w.Write(audio)
+	}))
+	defer srv.Close()
+	var asked int
+	src := streamer{st: music.Stream{URL: srv.URL, Type: "mp3", Size: int64(len(audio))}, asked: &asked}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "song.mp3")
+
+	song, err := New(func(func()) {}).FindSong(src, music.Track{ID: "1", Source: "src"}, "high")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if song.Size() != int64(len(audio)) {
+		t.Errorf("size %d, want %d", song.Size(), len(audio))
+	}
+	var last int64
+	if err := song.SaveToContext(context.Background(), path, func(n int64) { last = n }); err != nil {
+		t.Fatal(err)
+	}
+	if last != int64(len(audio)) {
+		t.Errorf("progress ended at %d, want %d", last, len(audio))
+	}
+	if b, _ := os.ReadFile(path); !bytes.Equal(b, audio) {
+		t.Errorf("saved %d bytes", len(b))
+	}
+
+	os.WriteFile(path, []byte("before"), 0o644)
+	song, err = New(func(func()) {}).FindSong(src, music.Track{ID: "1", Source: "src"}, "high")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := song.SaveToContext(ctx, path, nil); err == nil {
+		t.Error("saved with a canceled context")
 	}
 	if b, _ := os.ReadFile(path); string(b) != "before" {
 		t.Errorf("left %q", b)

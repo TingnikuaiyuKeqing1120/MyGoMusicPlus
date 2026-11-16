@@ -109,6 +109,8 @@ type app struct {
 	selList    ui.ListState
 	trackSel   ui.Selection[int]
 	pageTracks []music.Track
+
+	downloads dlManager // songs on their way to files of the listener's
 	// Where the page and the sidebar are scrolled, kept while Now Playing
 	// covers them, unbuilt.
 	pageScroll ui.ScrollState

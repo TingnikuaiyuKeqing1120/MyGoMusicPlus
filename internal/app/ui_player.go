@@ -462,6 +462,7 @@ func (a *app) playerBar(c *ui.Context) {
 			if iconButton(c.Key("queue"), iconQueue, 16, p.muted, T("Queue")).Clicked() && tr != nil {
 				a.nowPlaying, a.npPane = true, paneQueue
 			}
+			a.downloadButton(c, p.text.Alpha(0.75))
 			a.volumeButton(c, p.text.Alpha(0.75))
 		})
 	})
