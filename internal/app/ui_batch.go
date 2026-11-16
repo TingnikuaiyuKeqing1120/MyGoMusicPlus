@@ -27,7 +27,7 @@ func (a *app) selectedTracks() []music.Track {
 // batchBar floats over the page when several songs are chosen: a count, and
 // what can be done with them all at once, as far as the source can.
 func (a *app) batchBar(c *ui.Context) {
-	if a.nowPlaying || a.trackSel.Len() < 2 {
+	if a.nowPlaying || a.trackSel.Len() < 2 || a.route.page == pageDownloaded {
 		return
 	}
 	sel := a.selectedTracks()

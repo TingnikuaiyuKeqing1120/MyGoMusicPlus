@@ -34,6 +34,7 @@ const (
 	pageSavedAlbums
 	pageBrowse
 	pageSection
+	pageDownloaded
 )
 
 type route struct {
@@ -316,6 +317,9 @@ func pluginsDir() string { return userDataDir("plugins") }
 
 // sourceByID finds the source a track says it's of, for the player.
 func (a *app) sourceByID(id string) music.Source {
+	if id == downloadedID {
+		return dlSource{}
+	}
 	if lib := a.libOf(id); lib != nil {
 		return lib.src
 	}

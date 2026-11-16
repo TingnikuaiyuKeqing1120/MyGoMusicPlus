@@ -231,6 +231,7 @@ func (a *app) sidebar(c *ui.Context) {
 			for _, n := range a.sidebarItems() {
 				a.navItem(c, n.icon, n.label, n.route)
 			}
+			a.navItem(c, iconDownload, T("Downloaded"), route{page: pageDownloaded})
 			if a.searched.query != "" && a.searched.src == a.id {
 				a.navItem(c, iconSearch, T("Search Results"), a.searched)
 			}
@@ -409,6 +410,8 @@ func (a *app) content(c *ui.Context) {
 		a.browsePage(c)
 	case pageSection:
 		a.sectionPage(c)
+	case pageDownloaded:
+		a.downloadedPage(c)
 	}
 }
 

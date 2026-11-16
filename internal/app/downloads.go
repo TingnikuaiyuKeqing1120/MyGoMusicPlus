@@ -64,7 +64,8 @@ type dlManager struct {
 	jobs   []*dlJob
 	next   int
 	active int
-	open   bool // the panel shows
+	open   bool     // the panel shows
+	lib    *library // the downloaded songs' source, for the Downloaded page
 }
 
 // byID returns the job id, or nil.

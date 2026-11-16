@@ -169,6 +169,12 @@ func (a *app) libOf(id string) *library {
 // trackLib returns the library of the source of tr, or the active one's for a
 // track that doesn't say.
 func (a *app) trackLib(tr *music.Track) *library {
+	if tr.Source == downloadedID {
+		if a.downloads.lib == nil {
+			a.downloads.lib = newLibrary(dlSource{})
+		}
+		return a.downloads.lib
+	}
 	if lib := a.libOf(tr.Source); lib != nil {
 		return lib
 	}
