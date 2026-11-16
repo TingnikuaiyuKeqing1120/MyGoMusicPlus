@@ -75,6 +75,8 @@ func (a *app) downloadRow(c *ui.Context, j *dlJob, pop popover) {
 				})
 			case dlQueued:
 				ui.Text(c, T("Queued")).FontSize(11.5).TextColor(p.muted)
+			case dlPaused:
+				ui.Text(c, T("Paused")).FontSize(11.5).TextColor(p.muted)
 			case dlDone:
 				ui.Textf(c, "%.1f MB", float64(j.size)/(1<<20)).FontSize(11.5).TextColor(p.muted)
 			case dlFailed:
@@ -84,7 +86,21 @@ func (a *app) downloadRow(c *ui.Context, j *dlJob, pop popover) {
 			}
 		})
 		switch j.status {
-		case dlQueued, dlDownloading:
+		case dlQueued:
+			if iconButton(c.Key("cancel"), iconX, 13, p.muted, T("Cancel")).Clicked() {
+				m.cancel(j.id)
+			}
+		case dlDownloading:
+			if iconButton(c.Key("pause"), iconPause, 13, p.muted, T("Pause download")).Clicked() {
+				m.pause(j.id)
+			}
+			if iconButton(c.Key("cancel"), iconX, 13, p.muted, T("Cancel")).Clicked() {
+				m.cancel(j.id)
+			}
+		case dlPaused:
+			if iconButton(c.Key("resume"), iconPlay, 13, p.muted, T("Resume download")).Clicked() {
+				m.resume(a, j.id)
+			}
 			if iconButton(c.Key("cancel"), iconX, 13, p.muted, T("Cancel")).Clicked() {
 				m.cancel(j.id)
 			}

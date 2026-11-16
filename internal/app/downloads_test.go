@@ -1,6 +1,8 @@
 package app
 
 import (
+	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -123,5 +125,55 @@ func TestDownloadPersist(t *testing.T) {
 	last := reloaded.jobs[len(reloaded.jobs)-1]
 	if last.status != dlDone || last.track.ID != "1" || last.path != j.path {
 		t.Errorf("reloaded %+v", last)
+	}
+}
+
+// A download paused keeps what it has saved, and resumed carries on from there
+// with a Range request, landing the whole song without asking for the start again.
+func TestDownloadPauseResume(t *testing.T) {
+	half := int64(128 << 10)
+	audio := bytes.Repeat([]byte("song"), int(half*2)/4)
+	block := make(chan struct{})
+	var ranged atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Range") == "" {
+			w.WriteHeader(http.StatusOK)
+			w.Write(audio[:half])
+			w.(http.Flusher).Flush()
+			<-block
+			return
+		}
+		ranged.Add(1)
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", half, len(audio)-1, len(audio)))
+		w.WriteHeader(http.StatusPartialContent)
+		w.Write(audio[half:])
+	}))
+	t.Cleanup(func() { srv.Close() })
+	t.Cleanup(func() { close(block) })
+	dir := t.TempDir()
+	a := newTestApp()
+	ch := posts(a)
+	fake(a).stream = func(id, quality string) (*music.Stream, error) {
+		return &music.Stream{URL: srv.URL, Type: "mp3", Size: int64(len(audio))}, nil
+	}
+	path := filepath.Join(dir, "song.mp3")
+	j := &dlJob{track: song("1", "宝船", "DOUDOU"), path: path, lib: a.library, quality: "high"}
+	a.downloads.add(a, j)
+	until(t, ch, func() bool { return j.done >= half })
+	a.downloads.pause(j.id)
+	until(t, ch, func() bool { return j.status == dlPaused })
+	if info, err := os.Stat(path + ".part"); err != nil || info.Size() != half {
+		t.Errorf("pause left part %v (err %v), want the first %d bytes kept", info, err, half)
+	}
+	if _, err := os.Stat(path); err == nil {
+		t.Error("a paused download left a finished file")
+	}
+	a.downloads.resume(a, j.id)
+	until(t, ch, func() bool { return j.status == dlDone })
+	if ranged.Load() != 1 {
+		t.Errorf("asked for the rest %d times, want one Range request", ranged.Load())
+	}
+	if b, _ := os.ReadFile(path); !bytes.Equal(b, audio) {
+		t.Errorf("resumed to %d bytes, want the whole %d", len(b), len(audio))
 	}
 }

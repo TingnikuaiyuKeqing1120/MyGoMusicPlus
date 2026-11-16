@@ -606,6 +606,9 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 		case j != nil && (j.status == dlQueued || j.status == dlDownloading):
 			offline.Label(T("Downloading"))
 			offline.Children(func() { ui.Icon(c, iconDownload).Size(13, 13).TextColor(p.accent) })
+		case j != nil && j.status == dlPaused:
+			offline.Label(T("Paused"))
+			offline.Children(func() { ui.Icon(c, iconPause).Size(13, 13).TextColor(p.muted) })
 		case j != nil && j.status == dlFailed:
 			offline.Label(T("Download failed"))
 			offline.Children(func() { ui.Icon(c, iconX).Size(13, 13).TextColor(ui.Hex("#e5484d")) })

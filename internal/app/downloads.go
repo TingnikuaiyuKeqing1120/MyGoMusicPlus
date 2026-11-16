@@ -29,6 +29,7 @@ const (
 	dlDone
 	dlFailed
 	dlCanceled
+	dlPaused
 )
 
 // dlLimit is how many songs download at once.
@@ -46,6 +47,7 @@ type dlJob struct {
 	size    int64
 	err     string
 	cancel  context.CancelFunc
+	pausing bool         // a pause was asked, to keep the part rather than drop it
 	song    *player.Song // found already, for a single download, or nil to find
 	lib     *library
 	quality string
@@ -94,7 +96,7 @@ func (m *dlManager) jobFor(tr *music.Track) *dlJob {
 		if j.track.ID != tr.ID || j.track.Source != tr.Source {
 			continue
 		}
-		if j.status == dlQueued || j.status == dlDownloading {
+		if j.status == dlQueued || j.status == dlDownloading || j.status == dlPaused {
 			return j
 		}
 		ended = j
@@ -170,9 +172,14 @@ func (m *dlManager) run(a *app, j *dlJob) {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	a.post(func() { j.path, j.size, j.cancel, j.status = path, size, cancel, dlDownloading })
+	a.post(func() {
+		j.path, j.size, j.cancel, j.status = path, size, cancel, dlDownloading
+		if j.pausing {
+			cancel()
+		}
+	})
 	var last int64
-	err := song.SaveToContext(ctx, path, func(n int64) {
+	progress := func(n int64) {
 		if n-last >= 128<<10 {
 			last = n
 			a.post(func() {
@@ -181,12 +188,29 @@ func (m *dlManager) run(a *app, j *dlJob) {
 				}
 			})
 		}
-	})
+	}
+	var err error
+	if st := song.Stream(); st != nil {
+		// Resume from what a pause left in the part file, if any.
+		var from int64
+		if info, serr := os.Stat(path + ".part"); serr == nil {
+			from = info.Size()
+		}
+		err = player.SaveStream(ctx, st, path, from, progress)
+		song.Close()
+	} else {
+		err = song.SaveToContext(ctx, path, progress)
+	}
 	a.post(func() {
 		j.cancel = nil
 		switch {
 		case errors.Is(err, context.Canceled):
-			j.status = dlCanceled
+			if j.pausing {
+				j.status = dlPaused
+			} else {
+				j.status = dlCanceled
+				os.Remove(path + ".part")
+			}
 		case err != nil:
 			j.status, j.err = dlFailed, err.Error()
 		default:
@@ -200,6 +224,10 @@ func (m *dlManager) run(a *app, j *dlJob) {
 // when its last song lands, and starts the next queued.
 func (m *dlManager) settle(a *app, j *dlJob) {
 	m.active--
+	if j.status == dlPaused {
+		m.pump(a)
+		return
+	}
 	if j.status == dlDone {
 		m.persist()
 	}
@@ -224,7 +252,8 @@ func (m *dlManager) settle(a *app, j *dlJob) {
 	m.pump(a)
 }
 
-// cancel stops a job: one queued is dropped, one downloading is cut short.
+// cancel stops a job for good: one queued is dropped, one downloading is cut
+// short and its part removed, one paused gives up its part.
 func (m *dlManager) cancel(id int) {
 	j := m.byID(id)
 	if j == nil {
@@ -234,10 +263,38 @@ func (m *dlManager) cancel(id int) {
 	case dlQueued:
 		j.status = dlCanceled
 	case dlDownloading:
+		j.pausing = false
 		if j.cancel != nil {
 			j.cancel()
 		}
+	case dlPaused:
+		j.status = dlCanceled
+		if j.path != "" {
+			os.Remove(j.path + ".part")
+		}
 	}
+}
+
+// pause stops a download but keeps what it has saved, to resume from later.
+func (m *dlManager) pause(id int) {
+	j := m.byID(id)
+	if j == nil || j.status != dlDownloading {
+		return
+	}
+	j.pausing = true
+	if j.cancel != nil {
+		j.cancel()
+	}
+}
+
+// resume queues a paused job again, to carry on from its part file.
+func (m *dlManager) resume(a *app, id int) {
+	j := m.byID(id)
+	if j == nil || j.status != dlPaused {
+		return
+	}
+	j.pausing, j.status, j.err, j.song = false, dlQueued, "", nil
+	m.pump(a)
 }
 
 // retry queues a job that failed or was canceled again.
@@ -246,7 +303,7 @@ func (m *dlManager) retry(a *app, id int) {
 	if j == nil || (j.status != dlFailed && j.status != dlCanceled) {
 		return
 	}
-	j.status, j.done, j.err, j.song, j.cancel = dlQueued, 0, "", nil, nil
+	j.status, j.done, j.err, j.song, j.cancel, j.pausing = dlQueued, 0, "", nil, nil, false
 	m.pump(a)
 }
 
