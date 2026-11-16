@@ -148,6 +148,9 @@ func TestBatchDownload(t *testing.T) {
 	if err := tt.Click("Download"); err != nil {
 		t.Fatalf("%v; the bar shows %q", err, tt.Texts())
 	}
+	if err := tt.ChooseMenuItem("High"); err != nil {
+		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+	}
 	until(t, ch, func() bool { return strings.HasPrefix(a.toast, "Downloaded") })
 	if a.toast != "Downloaded 2 songs" {
 		t.Errorf("toast %q, want the two chosen", a.toast)

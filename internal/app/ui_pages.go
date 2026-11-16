@@ -294,9 +294,8 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 			ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
 				a.playButtons(c, pl.Tracks)
 				if a.canDownloadAny(pl.Tracks) {
-					if pillButton(c.Key("download-all"), iconDownload, T("Download All"), p.hover.Over(p.bg), p.text).Clicked() {
-						a.downloadAll(pl.Tracks)
-					}
+					pillButton(c.Key("download-all"), iconDownload, T("Download All"), p.hover.Over(p.bg), p.text).
+						Menu(func(m *ui.Menu) { a.downloadQualityMenu(m, pl.Tracks) })
 				}
 				if a.savable(pl) {
 					icon, label := iconPlus, TC("Save", "library")
@@ -350,9 +349,8 @@ func (a *app) likedPage(c *ui.Context) {
 					ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
 						a.playButtons(c, lib.likedList)
 						if a.canDownloadAny(lib.likedList) {
-							if pillButton(c.Key("download-all"), iconDownload, T("Download All"), p.hover.Over(p.bg), p.text).Clicked() {
-								a.downloadAll(lib.likedList)
-							}
+							pillButton(c.Key("download-all"), iconDownload, T("Download All"), p.hover.Over(p.bg), p.text).
+								Menu(func(m *ui.Menu) { a.downloadQualityMenu(m, lib.likedList) })
 						}
 					})
 				}

@@ -50,9 +50,8 @@ func (a *app) batchBar(c *ui.Context) {
 					}
 				}
 				if a.canDownloadAny(sel) {
-					if pillButton(c.Key("batch-download"), iconDownload, T("Download"), p.hover.Over(p.bg), p.text).Clicked() {
-						a.downloadAll(sel)
-					}
+					pillButton(c.Key("batch-download"), iconDownload, T("Download"), p.hover.Over(p.bg), p.text).
+						Menu(func(m *ui.Menu) { a.downloadQualityMenu(m, sel) })
 				}
 				ui.Box(c).Width(0.5).Height(20).Background(p.hairline)
 				if pillButton(c.Key("batch-all"), nil, T("Select All"), p.hover.Over(p.bg), p.text).Clicked() {

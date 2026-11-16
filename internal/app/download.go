@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 
 	"mygo-music/internal/local"
 	"mygo-music/internal/music"
@@ -66,13 +67,22 @@ var pickFolder = func(a *app, got func(string)) {
 	}()
 }
 
+// downloadQualityMenu asks which quality to save tracks at, then downloads
+// them all into one folder the listener picks.
+func (a *app) downloadQualityMenu(m *ui.Menu, tracks []music.Track) {
+	for _, q := range qualityLevels {
+		if m.Item(T(q.label)).Chosen() {
+			a.downloadAll(tracks, q.level)
+		}
+	}
+}
+
 // downloadAll saves copies of tracks into one folder the listener picks, at
-// the quality the settings say, from the cache if kept there. A song listed
-// twice is saved once, and one already in the folder is left as it is. The
-// download manager shows each one's progress, and a toast tells of them all.
-func (a *app) downloadAll(tracks []music.Track) {
+// the quality asked, from the cache if kept there. A song listed twice is
+// saved once, and one already in the folder is left as it is. The download
+// manager shows each one's progress, and a toast tells of them all.
+func (a *app) downloadAll(tracks []music.Track, quality string) {
 	lib := a.library
-	quality := a.settings.Quality
 	var list []music.Track
 	seen := map[string]bool{}
 	for _, tr := range tracks {
