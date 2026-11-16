@@ -590,9 +590,21 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 				a.likeButton(c.Key("like"), tr, 15, p.muted)
 			}
 		})
-		// A song kept in the cache plays without the network: marked so.
+		// A song's download shows here: on its way, failed, or saved to a
+		// file; else a song kept in the cache plays without the network.
 		offline := ui.Box(c).Width(20).Center()
-		if a.isOffline(tr) {
+		j := a.downloads.jobFor(tr)
+		switch {
+		case j != nil && (j.status == dlQueued || j.status == dlDownloading):
+			offline.Label(T("Downloading"))
+			offline.Children(func() { ui.Icon(c, iconDownload).Size(13, 13).TextColor(p.accent) })
+		case j != nil && j.status == dlFailed:
+			offline.Label(T("Download failed"))
+			offline.Children(func() { ui.Icon(c, iconX).Size(13, 13).TextColor(ui.Hex("#e5484d")) })
+		case j != nil && j.status == dlDone:
+			offline.Label(T("Downloaded"))
+			offline.Children(func() { ui.Icon(c, iconCheck).Size(13, 13).TextColor(p.faint) })
+		case a.isOffline(tr):
 			offline.Label(T("Offline"))
 			offline.Children(func() { ui.Icon(c, iconDatabase).Size(13, 13).TextColor(p.faint) })
 		}

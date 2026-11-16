@@ -86,6 +86,22 @@ func (m *dlManager) working() int {
 	return n
 }
 
+// jobFor returns the job of a song on its way, or else the last one that
+// ended, for a row to mark its download. Nil when it has none.
+func (m *dlManager) jobFor(tr *music.Track) *dlJob {
+	var ended *dlJob
+	for _, j := range m.jobs {
+		if j.track.ID != tr.ID || j.track.Source != tr.Source {
+			continue
+		}
+		if j.status == dlQueued || j.status == dlDownloading {
+			return j
+		}
+		ended = j
+	}
+	return ended
+}
+
 // add queues one song to save to path, found already as song.
 func (m *dlManager) add(a *app, j *dlJob) {
 	m.next++
