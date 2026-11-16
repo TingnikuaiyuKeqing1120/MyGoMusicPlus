@@ -176,3 +176,21 @@ func TestRowClickPlaysWithoutBar(t *testing.T) {
 		t.Errorf("one song chosen showed the bar: %q", tt.Texts())
 	}
 }
+
+// Delete takes the chosen songs out of the playlist they are listed in.
+func TestBatchDeleteKey(t *testing.T) {
+	a, tt, ch, _, removed := batchApp(t)
+	if err := tt.ClickWith(ui.Cmd, "宝船"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.ClickWith(ui.Cmd, "大海"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Key(0, ui.KeyDelete)
+	until(t, ch, func() bool { return a.toast == "Removed 2 songs from the playlist" })
+	if len(*removed) != 1 || (*removed)[0] != "42:1,2" {
+		t.Errorf("removed %v, want both out of playlist 42", *removed)
+	}
+}

@@ -487,6 +487,17 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 			}
 			a.trackRow(c, tracks, i-1, covers, pid, r, true)
 		})
+	// Delete takes the chosen songs out of the playlist they are listed in,
+	// while the list has the focus, as a text field's Delete would not.
+	a.selList.OnShortcut(c, 0, ui.KeyDelete, func() {
+		if a.trackSel.Len() == 0 || a.route.page != pagePlaylist {
+			return
+		}
+		if a.editable(a.route.id) == nil || !a.can("removeFromPlaylist") {
+			return
+		}
+		a.removeFromBatch(a.library, a.route.id, a.selectedTracks())
+	})
 }
 
 // sameTrack reports whether two tracks are one: IDs are their source's.
