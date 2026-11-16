@@ -468,6 +468,14 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []music.Playlist, m
 				}
 			})
 		}
+		if mine && a.can("addToPlaylist") && !a.library.signedOut() {
+			if _, over := ui.DragOver[dragTracks](b); over {
+				b.Background(p.press)
+			}
+			if ts, ok := ui.Drop[dragTracks](b); ok {
+				a.addToBatch(a.library, pl.ID, []music.Track(ts))
+			}
+		}
 		if b.Clicked() {
 			a.open(route{page: pagePlaylist, id: pl.ID})
 		}

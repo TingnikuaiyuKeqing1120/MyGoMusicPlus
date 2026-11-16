@@ -465,6 +465,16 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 	// The header and the foot are not songs to choose.
 	a.selList.Header = func(i int) bool { return i == 0 || i > len(tracks) }
 	a.selList.Selection = &a.trackSel
+	// In the listener's own playlist, rows drag to reorder; elsewhere they
+	// drag to a playlist of the sidebar to add to it. A list takes one or the
+	// other, not both.
+	a.selList.Reorder, a.selList.DragRows = nil, nil
+	if a.route.page == pagePlaylist && a.editable(a.route.id) != nil && a.can("movePlaylistTrack") {
+		pid := a.route.id
+		a.selList.Reorder = func(rows []int, to int) { a.reorderTracks(pid, rows, to) }
+	} else if a.can("addToPlaylist") && !a.library.signedOut() {
+		a.selList.DragRows = func(rows []int) any { return draggedTracks(tracks, rows) }
+	}
 	ui.List(c.Key(a.route), &a.selList, rows).
 		Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).
 		Rows(func(r ui.ListRow) {
