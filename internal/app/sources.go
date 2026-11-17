@@ -187,6 +187,9 @@ func (a *app) trackLib(tr *music.Track) *library {
 func (a *app) boot() {
 	a.downloads.load()
 	a.keepCheckingPlugins()
+	a.syncer.cfg = loadSyncConfig()
+	a.syncer.saved = a.syncer.cfg
+	a.keepSyncing()
 	a.startLibrary(a.library)
 	a.restoreSession()
 	if a.local != nil {

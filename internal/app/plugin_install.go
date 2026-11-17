@@ -230,6 +230,7 @@ func (a *app) confirmInstall() {
 				return
 			}
 			in.open = false
+			a.markSyncDirty()
 		})
 	}()
 }
@@ -309,6 +310,7 @@ func (a *app) removePlugin(lib *library) {
 			log.Printf("removing plugin %s: %v", lib.id, err)
 		}
 	}()
+	a.markSyncDirty()
 	a.redraw()
 }
 

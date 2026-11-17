@@ -73,6 +73,7 @@ func (a *app) changed() {
 	if a.notch != nil {
 		a.notch.setEnabled(a.settings.Notch)
 	}
+	a.markSyncDirty()
 	a.redraw()
 }
 
@@ -472,6 +473,8 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 			}
 		})
 	})
+
+	add("sync", T("Sync"), iconRefresh, func(row settingsRow, block settingsBlock) { a.syncSettings(c, row, p) })
 
 	if a.captionsShown() && a.anyCan("shows") {
 		add("podcasts", T("Podcasts"), iconPodcast, func(row settingsRow, block settingsBlock) { a.captionSettings(row, c) })
