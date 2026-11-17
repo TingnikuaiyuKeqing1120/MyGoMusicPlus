@@ -146,11 +146,13 @@ func (a *app) downloadedRow(c *ui.Context, jobs []*dlJob, tracks []music.Track, 
 			ui.Text(c, tr.ArtistNames()).FontSize(12.5).TextColor(p.muted).SingleLine()
 		})
 		ui.Textf(c, "%.1f MB", float64(j.size)/(1<<20)).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(72).TextAlign(ui.End)
-		ui.Box(c).Size(32, 32).Center().Children(func() {
-			if iconButton(c.Key("reveal"), iconFolder, 15, p.muted, T("Show in Folder")).Clicked() {
-				revealFile(j.path)
-			}
-		})
+		if !onWeb {
+			ui.Box(c).Size(32, 32).Center().Children(func() {
+				if iconButton(c.Key("reveal"), iconFolder, 15, p.muted, T("Show in Folder")).Clicked() {
+					revealFile(j.path)
+				}
+			})
+		}
 		ui.Box(c).Size(32, 32).Center().Children(func() {
 			if iconButton(c.Key("delete"), iconTrash, 15, p.muted, T("Delete")).Clicked() {
 				a.askDeleteDownloads([]music.Track{*tr})

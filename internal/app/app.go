@@ -19,6 +19,10 @@ import (
 	"mygo-music/internal/plugin"
 )
 
+// onWeb is the app running in a browser, as the phone's shell shows it,
+// where native dialogs, the tray and this computer's folders aren't.
+var onWeb = runtime.GOOS == "js"
+
 type pageKind int
 
 const (
@@ -348,7 +352,9 @@ func Run() error {
 		queueAt:     -1,
 		cacheUsed:   -1,
 	}
-	a.useUpdater(i18n.Resolve(loadSettings().Language, systemLanguages()))
+	if !onWeb {
+		a.useUpdater(i18n.Resolve(loadSettings().Language, systemLanguages()))
+	}
 	mygo.App.WhenReady(func() {
 		a.settings = loadSettings()
 		a.settings.applyAppearance()
@@ -463,5 +469,6 @@ func Run() error {
 		}
 		a.openLink(link)
 	})
+	webLinkBridge(a)
 	return mygo.App.Run()
 }

@@ -216,6 +216,13 @@ func (a *app) settingsView(c *ui.Context) {
 					ui.Box(c).Grow(1)
 					a.installMenu(c, p)
 				}
+				if onWeb {
+					// No window buttons in a browser: this closes the settings.
+					ui.Box(c).Grow(1)
+					if iconButton(c.Key("close-settings"), iconX, 16, p.muted, T("Close")).Clicked() {
+						a.settingsWin.Close()
+					}
+				}
 			})
 			// The pointer over it brings the edge up too, as AppKit's does.
 			edge.Opacity(edgeShown(edge, a.settingsUnderTop || header.Hovered()))
@@ -529,6 +536,13 @@ func (a *app) anyCan(what string) bool {
 // sourceSettings lists the sources, each with what it asks of the listener,
 // and where more of them come from.
 func (a *app) sourceSettings(c *ui.Context, row settingsRow, block settingsBlock, p palette) {
+	if !a.hasBundledGD() {
+		row(T("GD Music"), T("A built-in music source from GD Studio, installed in one click"), func() {
+			if ui.PrimaryButton(c.Key("install-gd"), T("Install")).Disabled(a.installer.busy).Clicked() {
+				a.installBundledGD()
+			}
+		})
+	}
 	for _, lib := range a.allLibs {
 		if lib.id == local.ID {
 			a.localSettings(c, lib, row, block, p)
@@ -568,7 +582,7 @@ func (a *app) localSettings(c *ui.Context, lib *library, row settingsRow, block 
 			if enabled && len(folders) > 0 && ui.Button(c.Key("rescan"), T("Rescan")).Disabled(a.local.Scanning()).Clicked() {
 				a.local.Rescan()
 			}
-			if enabled && ui.Button(c.Key("add-folder"), T("Add Folder…")).Clicked() {
+			if enabled && !onWeb && ui.Button(c.Key("add-folder"), T("Add Folder…")).Clicked() {
 				a.addMusicFolder()
 			}
 			a.pluginSwitch(c, lib)

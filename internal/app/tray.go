@@ -36,6 +36,9 @@ var appIcons = []struct{ id, label string }{
 // showsTray tells whether the app's icon shows in the menu bar or the
 // notification area.
 func showsTray(s settings) bool {
+	if onWeb {
+		return false
+	}
 	return runtime.GOOS != "darwin" || s.AppIcon != "dock"
 }
 

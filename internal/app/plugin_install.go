@@ -489,18 +489,26 @@ func (a *app) installMenu(c *ui.Context, p palette) {
 	in := &a.installer
 	add := iconButton(c.Key("install-plugin"), iconPlus, 16, p.muted, T("Install a Plugin"))
 	add.Menu(func(m *ui.Menu) {
+		if !a.hasBundledGD() {
+			if m.Item(T("GD Music (Built-in)")).Disabled(in.busy).Chosen() {
+				a.installBundledGD()
+			}
+			m.Separator()
+		}
 		if m.Item(T("From GitHub…")).Disabled(in.busy).Chosen() {
 			a.askForRepo()
 		}
-		if m.Item(T("From a Folder…")).Disabled(in.busy).Chosen() {
-			a.installFromDisk(true)
-		}
-		if m.Item(T("From a Zip…")).Disabled(in.busy).Chosen() {
-			a.installFromDisk(false)
-		}
-		m.Separator()
-		if m.Item(T("Show Plugins Folder")).Chosen() {
-			revealFolder(pluginsDir())
+		if !onWeb {
+			if m.Item(T("From a Folder…")).Disabled(in.busy).Chosen() {
+				a.installFromDisk(true)
+			}
+			if m.Item(T("From a Zip…")).Disabled(in.busy).Chosen() {
+				a.installFromDisk(false)
+			}
+			m.Separator()
+			if m.Item(T("Show Plugins Folder")).Chosen() {
+				revealFolder(pluginsDir())
+			}
 		}
 	})
 }
@@ -658,8 +666,10 @@ func (a *app) pluginMenu(c *ui.Context, lib *library, p palette) {
 				a.checkPluginUpdate(lib)
 			}
 		}
-		if m.Item(T("Show Folder")).Chosen() {
-			revealFolder(plug.Dir())
+		if !onWeb {
+			if m.Item(T("Show Folder")).Chosen() {
+				revealFolder(plug.Dir())
+			}
 		}
 		m.Separator()
 		last := len(a.libs) == 1 && a.libs[0] == lib
