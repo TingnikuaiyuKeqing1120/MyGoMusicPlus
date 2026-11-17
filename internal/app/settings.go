@@ -29,6 +29,9 @@ type settings struct {
 	// day, and PluginUpdates the versions found, by plugin.
 	PluginsChecked time.Time         `json:"pluginsChecked,omitzero"`
 	PluginUpdates  map[string]string `json:"pluginUpdates,omitempty"`
+	// AppChecked is when the app's own releases were last looked at, once a
+	// day, on the web.
+	AppChecked time.Time `json:"appChecked,omitzero"`
 	// Notch shows the quick player around the notch: the listener turns
 	// it on.
 	Notch bool `json:"notch"`

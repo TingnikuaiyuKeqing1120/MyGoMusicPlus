@@ -17,8 +17,11 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
   （`window.__mygoLink` + `mygo-link` 事件，web 侧 `links_web.go` 接收）。
 - `PlaybackService`：`mediaPlayback` 前台服务 + 媒体通知 + `MediaSessionCompat` + 音频焦点；
   通知/锁屏/耳机键经 `WebLink` 调 web 的 mediaSession handlers；焦点丢失自动暂停。
-- `Bridge`：web media-bridge → 原生（元数据/播放态/进度/分享/外链）。
-- `WebLink`：原生 → web 的反向控制缝。
+- `Bridge`：web media-bridge → 原生（元数据/播放态/进度/分享/外链）；GitHub OAuth
+  设备流的两步请求（`githubDeviceStart`/`githubDevicePoll`，GitHub 登录端点不对浏览器
+  fetch 开放 CORS，由壳代发，结果经 `__mygoDeviceResult` 回传）；`installApk` 下载更新
+  并经 FileProvider 交给系统安装器（进度经 `__mygoInstallState` 回传）。
+- `WebLink`：原生 → web 的反向控制缝（媒体控制 / 设备流应答 / 安装进度）。
 
 ## 构建步骤
 1. 工具链：JDK 17、Android SDK（compileSdk 35 / build-tools 35.0.0）、Gradle 8.7。
@@ -43,6 +46,11 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
   断网时回退 App 内置副本。
 - GitHub 私有仓库同步（设置 → 同步）：令牌 + 仓库名，独立开关同步设置/歌单/插件，
   增量 merge + last-write-wins，定期 pull + 改动 debounce push。
+  令牌可经 OAuth 设备流获取（设置 → 同步 → 通过 GitHub 登录，显示设备码，
+  授权后自动填入；OAuth App client ID 见 `internal/app/oauth.go`）。
+- App 自动更新（设置 → 更新）：每天检查 `TingnikuaiyuKeqing1120/MyGoMusicPlus`
+  的 releases，发现新版可下载 APK 交系统安装器（需允许安装未知应用）；
+  纯浏览器中打开 release 页面。
 - 桌面-only UI 已收敛：浏览器/壳内隐藏托盘、原生文件夹/zip 选择、 reveal-in-folder、
   桌面更新器；设置覆盖层有关闭按钮。
 
@@ -50,3 +58,4 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
 - 后台/锁屏续播、音频焦点、耳机键（P3）；Android 14+ 后台启动前台服务的限制。
 - OPFS 在目标 WebView 版本的可用性与配额（缓存上限 CacheMB）。
 - 通知图标暂用系统 `ic_media_play`，后续换品牌图标。
+- OAuth 设备流与 APK 自动更新的真机交互（安装未知应用授权提示）。

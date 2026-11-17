@@ -585,6 +585,45 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 				}
 			})
 		})
+	} else if onWeb {
+		add("updates", T("Updates"), iconRefresh, func(row settingsRow, block settingsBlock) {
+			u := &a.appUpd
+			desc := T("Check for a new version once a day")
+			if !a.settings.AppChecked.IsZero() {
+				desc = Tf("Check for a new version once a day. Last checked: %s", i18n.Ago(a.settings.AppChecked, time.Now()))
+			}
+			row(Tf("Current Version %s", mygo.App.Version()), desc, func() {
+				if ui.Button(c.Key("check-app-updates"), T("Check for Updates")).Disabled(u.checking).Clicked() {
+					a.checkAppUpdate()
+				}
+			})
+			if u.err != "" {
+				ui.Text(c, u.err).FontSize(12).TextColor(p.accent).LineHeight(1.4)
+			}
+			if u.version != "" {
+				row(Tf("New Version %s", u.version), T("Download the new version and hand it to the system installer"), func() {
+					switch {
+					case u.install == "downloading":
+						ui.Text(c, T("Downloading the update…")).FontSize(13).TextColor(p.muted)
+					case u.install == "installing":
+						ui.Text(c, T("The system installer has the update")).FontSize(13).TextColor(p.muted)
+						if ui.Button(c.Key("install-app-retry"), T("Try Again")).Clicked() {
+							u.install = ""
+							a.installAppUpdate()
+						}
+					case strings.HasPrefix(u.install, "failed"):
+						ui.Text(c, u.install).FontSize(12).TextColor(p.accent).LineHeight(1.4)
+						if ui.Button(c.Key("install-app-retry"), T("Try Again")).Clicked() {
+							a.installAppUpdate()
+						}
+					default:
+						if ui.Button(c.Key("install-app-update"), T("Download and Install")).Clicked() {
+							a.installAppUpdate()
+						}
+					}
+				})
+			}
+		})
 	}
 	return sections
 }

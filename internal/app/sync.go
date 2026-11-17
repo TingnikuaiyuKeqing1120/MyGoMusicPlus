@@ -32,6 +32,11 @@ type syncState struct {
 	err   string
 	last  time.Time // when syncing last came through
 	dirty bool      // a change here awaits its push
+	// device is a GitHub sign-in on its way, the device flow's code showing
+	// while the listener enters it; deviceGen counts the ones started, to
+	// tell the last from one put away.
+	device    *deviceFlow
+	deviceGen int
 }
 
 // saveSyncConfig keeps the choices on this device.

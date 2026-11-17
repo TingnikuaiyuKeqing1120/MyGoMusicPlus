@@ -67,6 +67,20 @@ class MainActivity : Activity() {
                 web.evaluateJavascript("globalThis.__mediaControl && globalThis.__mediaControl('$action')", null)
             }
         }
+        WebLink.device = { id, json ->
+            runOnUiThread {
+                val js = "globalThis.__mygoDeviceResult && __mygoDeviceResult($id, " +
+                    org.json.JSONObject.quote(json) + ")"
+                web.evaluateJavascript(js, null)
+            }
+        }
+        WebLink.install = { state ->
+            runOnUiThread {
+                val js = "globalThis.__mygoInstallState && __mygoInstallState(" +
+                    org.json.JSONObject.quote(state) + ")"
+                web.evaluateJavascript(js, null)
+            }
+        }
         web.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(v: WebView, req: WebResourceRequest): WebResourceResponse? =
                 assetLoader.shouldInterceptRequest(req.url)
@@ -180,6 +194,8 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         WebLink.control = null
+        WebLink.device = null
+        WebLink.install = null
         web.destroy()
         super.onDestroy()
     }

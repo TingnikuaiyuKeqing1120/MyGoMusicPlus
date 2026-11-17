@@ -190,6 +190,7 @@ func (a *app) boot() {
 	a.syncer.cfg = loadSyncConfig()
 	a.syncer.saved = a.syncer.cfg
 	a.keepSyncing()
+	webBoot(a)
 	a.startLibrary(a.library)
 	a.restoreSession()
 	if a.local != nil {

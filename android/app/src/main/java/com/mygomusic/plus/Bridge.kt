@@ -41,4 +41,68 @@ class Bridge(private val ctx: Context) {
 
     @JavascriptInterface
     fun log(msg: String) = android.util.Log.i("MyGoPlus", msg)
+
+    // GitHub's device flow: the sign-in endpoints aren't open to a browser's
+    // fetch, so the shell makes the requests. Each returns at once and the
+    // answer goes back through WebLink.device, by the id it came in with.
+    @JavascriptInterface
+    fun githubDeviceStart(clientId: String, scope: String, id: Int) {
+        devicePost(id, "https://github.com/login/device/code",
+            "client_id=" + enc(clientId) + "&scope=" + enc(scope))
+    }
+
+    @JavascriptInterface
+    fun githubDevicePoll(clientId: String, deviceCode: String, id: Int) {
+        devicePost(id, "https://github.com/login/oauth/access_token",
+            "client_id=" + enc(clientId) + "&device_code=" + enc(deviceCode) +
+                "&grant_type=" + enc("urn:ietf:params:oauth:grant-type:device_code"))
+    }
+
+    private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
+
+    private fun devicePost(id: Int, url: String, body: String) {
+        Thread {
+            val res = try {
+                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.connectTimeout = 15000
+                conn.readTimeout = 15000
+                conn.setRequestProperty("Accept", "application/json")
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                val stream = if (conn.responseCode >= 400) conn.errorStream else conn.inputStream
+                stream?.use { it.readBytes().toString(Charsets.UTF_8) }
+                    ?: "{\"error\":\"http_${conn.responseCode}\"}"
+            } catch (e: Exception) {
+                "{\"error\":\"network\",\"error_description\":" +
+                    org.json.JSONObject.quote(e.message ?: "connection failed") + "}"
+            }
+            WebLink.device?.invoke(id, res)
+        }.start()
+    }
+
+    // installApk downloads the update and hands it to the system installer,
+    // saying how it goes through WebLink.install.
+    @JavascriptInterface
+    fun installApk(url: String) {
+        Thread {
+            try {
+                WebLink.install?.invoke("downloading")
+                val f = java.io.File(ctx.cacheDir, "update.apk")
+                java.net.URL(url).openStream().use { input ->
+                    f.outputStream().use { input.copyTo(it) }
+                }
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    ctx, ctx.packageName + ".fileprovider", f)
+                val i = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/vnd.android.package-archive")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                ctx.startActivity(i)
+                WebLink.install?.invoke("installing")
+            } catch (e: Exception) {
+                WebLink.install?.invoke("failed: " + (e.message ?: e.javaClass.simpleName))
+            }
+        }.start()
+    }
 }
