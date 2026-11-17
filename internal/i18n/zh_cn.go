@@ -425,6 +425,7 @@ var zhCN = map[string]string{
 	"New Version %s": "新版本 %s",
 	"Download the new version and hand it to the system installer": "下载新版本并交给系统安装器",
 	"Downloading the update…": "正在下载更新…",
+	"Downloading the update… %d%%": "正在下载更新… %d%%",
 	"The system installer has the update": "更新已交给系统安装器",
 	"Download and Install": "下载并安装",
 	"Various Artists":             "群星",

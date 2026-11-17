@@ -603,8 +603,21 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 			if u.version != "" {
 				row(Tf("New Version %s", u.version), T("Download the new version and hand it to the system installer"), func() {
 					switch {
-					case u.install == "downloading":
-						ui.Text(c, T("Downloading the update…")).FontSize(13).TextColor(p.muted)
+					case strings.HasPrefix(u.install, "downloading"):
+						frac, known := u.downloadProgress()
+						label := T("Downloading the update…")
+						if known {
+							label = Tf("Downloading the update… %d%%", int(frac*100))
+						}
+						ui.Column(c).Gap(5).Children(func() {
+							ui.Text(c, label).FontSize(12).TextColor(p.muted)
+							ui.Box(c).Width(160).Height(4).Radius(2).Draw(func(pt *ui.Painter, r ui.Rect) {
+								pt.Fill(r, p.hover.Over(p.bg), 2)
+								if frac > 0 {
+									pt.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W * min(frac, 1), H: r.H}, p.accent, 2)
+								}
+							})
+						})
 					case u.install == "installing":
 						ui.Text(c, T("The system installer has the update")).FontSize(13).TextColor(p.muted)
 						if ui.Button(c.Key("install-app-retry"), T("Try Again")).Clicked() {

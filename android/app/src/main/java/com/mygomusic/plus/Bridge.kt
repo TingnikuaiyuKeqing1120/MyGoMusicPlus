@@ -82,15 +82,37 @@ class Bridge(private val ctx: Context) {
     }
 
     // installApk downloads the update and hands it to the system installer,
-    // saying how it goes through WebLink.install.
+    // saying how it goes through WebLink.install, the download's percent as
+    // it comes so the wait shows its progress.
     @JavascriptInterface
     fun installApk(url: String) {
         Thread {
             try {
                 WebLink.install?.invoke("downloading")
                 val f = java.io.File(ctx.cacheDir, "update.apk")
-                java.net.URL(url).openStream().use { input ->
-                    f.outputStream().use { input.copyTo(it) }
+                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 30000
+                conn.readTimeout = 60000
+                val total = conn.contentLengthLong
+                var done = 0L
+                var lastPct = -1
+                conn.inputStream.use { input ->
+                    f.outputStream().use { out ->
+                        val buf = ByteArray(64 * 1024)
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n)
+                            done += n
+                            if (total > 0) {
+                                val pct = (done * 100 / total).toInt()
+                                if (pct != lastPct) {
+                                    lastPct = pct
+                                    WebLink.install?.invoke("downloading:$pct")
+                                }
+                            }
+                        }
+                    }
                 }
                 val uri = androidx.core.content.FileProvider.getUriForFile(
                     ctx, ctx.packageName + ".fileprovider", f)

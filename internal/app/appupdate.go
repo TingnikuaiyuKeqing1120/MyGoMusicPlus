@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -128,4 +129,18 @@ func (a *app) installAppUpdate() {
 		return
 	}
 	mygo.Shell.OpenExternal(u.page)
+}
+
+// downloadProgress is how far the update's download has come, and whether
+// its size is known: the shell says "downloading:NN" as the percent comes.
+func (u *appUpdate) downloadProgress() (frac float32, known bool) {
+	pct, ok := strings.CutPrefix(u.install, "downloading:")
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.Atoi(pct)
+	if err != nil {
+		return 0, false
+	}
+	return float32(min(n, 100)) / 100, true
 }

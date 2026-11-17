@@ -50,6 +50,23 @@ func TestAppUpdateInstall(t *testing.T) {
 	}
 }
 
+// The download's percent comes out of the shell's state, and a download of
+// unknown size shows no fraction.
+func TestAppUpdateDownloadProgress(t *testing.T) {
+	u := &appUpdate{install: "downloading:45"}
+	if frac, known := u.downloadProgress(); !known || frac != 0.45 {
+		t.Fatalf("45%% came out %v %v", frac, known)
+	}
+	u.install = "downloading"
+	if _, known := u.downloadProgress(); known {
+		t.Error("a download of unknown size claimed a fraction")
+	}
+	u.install = "downloading:120"
+	if frac, _ := u.downloadProgress(); frac != 1 {
+		t.Errorf("over 100%% came out %v", frac)
+	}
+}
+
 // The daily check asks once a day, not again within it.
 func TestAppUpdateDaily(t *testing.T) {
 	a := newTestApp()
