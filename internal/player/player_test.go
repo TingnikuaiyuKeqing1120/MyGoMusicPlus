@@ -239,7 +239,9 @@ func (s picky) Stream(id, _ string) (*music.Stream, error) {
 		return nil, music.ErrUnavailable
 	}
 	path, err := filepath.Abs("testdata/seek.mp3")
-	return &music.Stream{URL: "file://" + filepath.ToSlash(path), Type: "mp3"}, err
+	// FileURL, not "file://" + path: on Windows that makes the drive the
+	// URL's host (file://E:/…), and the path loses its drive.
+	return &music.Stream{URL: music.FileURL(path), Type: "mp3"}, err
 }
 
 // pickyQueue is a, b and c, of which b can't play.
