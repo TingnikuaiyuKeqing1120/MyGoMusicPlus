@@ -8,9 +8,11 @@ import android.os.Bundle
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.webkit.WebViewAssetLoader
 
 // MainActivity hosts the MyGo web build (wasm) in a WebView. The web shell's
 // fs-bridge keeps data in OPFS; media-bridge forwards MediaSession to
@@ -18,6 +20,7 @@ import android.widget.Toast
 class MainActivity : Activity() {
 
     private lateinit var web: WebView
+    private lateinit var assetLoader: WebViewAssetLoader
     private var fileChooser: ValueCallback<Array<Uri>>? = null
 
     companion object {
@@ -42,14 +45,23 @@ class MainActivity : Activity() {
             mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
         web.addJavascriptInterface(Bridge(this), "AndroidBridge")
+        // Serve assets over a virtual https domain: fetch() and OPFS need a
+        // secure context, which file:///android_asset is not.
+        assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
         WebLink.control = { action ->
             runOnUiThread {
                 web.evaluateJavascript("globalThis.__mediaControl && globalThis.__mediaControl('$action')", null)
             }
         }
         web.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(v: WebView, req: WebResourceRequest): WebResourceResponse? =
+                assetLoader.shouldInterceptRequest(req.url)
+
             override fun shouldOverrideUrlLoading(v: WebView, req: WebResourceRequest): Boolean {
                 val u = req.url.toString()
+                if (u.startsWith("https://appassets.androidplatform.net/")) return false
                 if (u.startsWith("file:///android_asset/")) return false
                 startActivity(Intent(Intent.ACTION_VIEW, req.url))
                 return true
@@ -94,7 +106,7 @@ class MainActivity : Activity() {
                 }
             }.start()
         }
-        web.loadUrl("file:///android_asset/web/index.html")
+        web.loadUrl("https://appassets.androidplatform.net/assets/web/index.html")
     }
 
     private fun deliverLink(i: Intent?) {

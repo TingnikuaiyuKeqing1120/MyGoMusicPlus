@@ -28,7 +28,9 @@ const patched = html
     `(async () => {
         await globalThis.__mygoFsReady;
         const go = new Go();
-        const r = await WebAssembly.instantiateStreaming(fetch("${wasm}"), go.importObject);
+        const resp = await fetch("${wasm}");
+        const bytes = await resp.arrayBuffer();
+        const r = await WebAssembly.instantiate(bytes, go.importObject);
         await go.run(r.instance);
       })()`);
 
