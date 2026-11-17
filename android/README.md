@@ -29,10 +29,12 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
    `android/local.properties` 指向 SDK（已 gitignore）。
 2. 在仓库根生成 web 产物与壳：
    ```bash
-   go tool mygo build -platform web
+   node scripts/build-web.mjs        # go tool mygo build -platform web，并注入 config 的版本号
    node scripts/web-shell.mjs        # 注入 fs-bridge / media-bridge，产出 build/web-shell
    node scripts/android-assets.mjs   # 拷入 android/app/src/main/assets/web
    ```
+   （mygo 的 web 编译不带 package flags，版本号经 `MYGO_LDFLAGS` 注入，
+   否则 App 内版本为空、任何 release 都会被当作更新。）
 3. 命令行构建（或 Android Studio 打开 `android/` Run `app`）：
    ```bash
    export JAVA_HOME="E:\Program\tools\jdk17"
@@ -53,6 +55,13 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
   纯浏览器中打开 release 页面。
 - 桌面-only UI 已收敛：浏览器/壳内隐藏托盘、原生文件夹/zip 选择、 reveal-in-folder、
   桌面更新器；设置覆盖层有关闭按钮。
+
+## 发版流程
+1. 同步改两处版本：`mygo.config.ts` 的 `version`、`android/app/build.gradle.kts` 的
+   `versionName` 与 `versionCode`（code 只升不降，系统安装器拒绝更低的 code）。
+2. 按上述步骤构建，复制 APK 到仓库根。
+3. 提交推送后 `gh release create v<版本> MyGoMusicPlus-debug.apk#MyGoMusicPlus-<版本>.apk`；
+   旧版 App 的每日检查会发现新版，下载经系统安装器升级。
 
 ## 已知待验证 / 待办（真机）
 - 后台/锁屏续播、音频焦点、耳机键（P3）；Android 14+ 后台启动前台服务的限制。

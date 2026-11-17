@@ -165,7 +165,14 @@
     open(path, flags, mode, cb) {
       const p = clean(path);
       const write = (flags & WRITES) !== 0;
-      if (isDir(p)) { if (write) return cb(err("EISDIR")); }
+      if (isDir(p)) {
+        if (write) return cb(err("EISDIR"));
+        // Reading a directory opens it too: Go asks for an fd, then fstat
+        // and readdir of the path. Without this every ReadDir failed ENOENT.
+        const fd = nextFd++;
+        fds.set(fd, { path: p, at: 0, flags });
+        return cb(null, fd);
+      }
       let f = files.get(p);
       if (!f) {
         if (!(flags & O_CREAT)) return cb(err("ENOENT"));

@@ -11,8 +11,10 @@ android {
         applicationId = "com.mygomusic.plus"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.25-plus"
+        // Rise with each release, together with the version in mygo.config.ts:
+        // the system installer refuses a code below the installed one.
+        versionCode = 2
+        versionName = "0.2.1"
     }
 
     buildTypes {
