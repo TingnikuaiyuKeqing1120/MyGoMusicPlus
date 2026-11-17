@@ -4,3 +4,11 @@ mygo_windows_*.syso
 /mygo-music
 /mygo-music.exe
 /node_modules/
+
+# Android shell: generated assets and Gradle output are not committed
+/android/app/src/main/assets/web/*
+!/android/app/src/main/assets/web/.gitkeep
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
