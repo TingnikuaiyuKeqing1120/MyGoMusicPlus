@@ -34,7 +34,19 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         web = WebView(this)
-        setContentView(web)
+        // Android 15 draws edge-to-edge; pad a wrapper (the WebView itself
+        // ignores padding) so the app's top bar and player clear the system
+        // bars.
+        val root = android.widget.FrameLayout(this)
+        root.addView(web, android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
+        setContentView(root)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
         with(web.settings) {
             javaScriptEnabled = true
             domStorageEnabled = true

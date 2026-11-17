@@ -124,6 +124,9 @@ type app struct {
 	scrolled   route // the page trackList and pageScroll are of
 
 	mineCollapsed, savedCollapsed bool
+	// navOpen shows the sidebar as a drawer over the page on a narrow window,
+	// as a phone held upright is, where there's no room for it beside.
+	navOpen bool
 
 	query     string
 	searchBox ui.Handle
@@ -176,6 +179,10 @@ type app struct {
 
 	settings    settings
 	settingsWin *mygo.Window
+	// settingsWeb shows the settings as a page of the main window on the web,
+	// where a second window would be a second WebGL context some phones'
+	// GPUs can't carry.
+	settingsWeb bool
 	cacheUsed   int64 // the bytes the song cache takes, -1 until measured
 	cacheCount  int64 // the songs the cache keeps, until measured
 	updates     bool  // the update plugin is used (useUpdater)

@@ -22,6 +22,14 @@ func (a *app) openSettings() {
 	if a.win == nil {
 		return // no app to show a window in, as in tests
 	}
+	if onWeb {
+		// One window: the settings are a page of it, not a second WebGL
+		// context, which weak phone GPUs can't carry.
+		a.settingsWeb = true
+		a.measureCache()
+		a.redraw()
+		return
+	}
 	if a.settingsWin != nil {
 		a.settingsWin.Show()
 		a.settingsWin.Focus()
@@ -64,6 +72,19 @@ func (a *app) openSettings() {
 func (a *app) openSourceSettings() {
 	a.settingsPage, a.settingsQuery = "plugins", ""
 	a.openSettings()
+}
+
+// closeSettings puts the settings away: a page of the main window on the web,
+// its own window elsewhere.
+func (a *app) closeSettings() {
+	if onWeb {
+		a.settingsWeb = false
+		a.redraw()
+		return
+	}
+	if a.settingsWin != nil {
+		a.settingsWin.Close()
+	}
 }
 
 // changed applies the settings everywhere and keeps them.
@@ -151,7 +172,7 @@ func (a *app) settingsView(c *ui.Context) {
 	useAccent(&t, p)
 	c.SetTheme(&t)
 	c.Root().Background(p.bg)
-	c.OnShortcut(ui.Cmd, ui.KeyW, func() { a.settingsWin.Close() })
+	c.OnShortcut(ui.Cmd, ui.KeyW, func() { a.closeSettings() })
 	c.OnShortcut(ui.Cmd, ui.KeyF, func() { a.settingsSearchBox.Focus(c) })
 
 	sections := a.settingsSections(c, p)
@@ -162,6 +183,13 @@ func (a *app) settingsView(c *ui.Context) {
 		}
 	}
 	query := strings.ToLower(strings.TrimSpace(a.settingsQuery))
+
+	if narrow(c) {
+		a.settingsNarrow(c, p, sections, current, query)
+		a.installDialog(c, p)
+		a.signInDialog(c, p, true)
+		return
+	}
 
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
 		// Under the window buttons where they sit over the sidebar. Where nothing
@@ -221,7 +249,7 @@ func (a *app) settingsView(c *ui.Context) {
 					// No window buttons in a browser: this closes the settings.
 					ui.Box(c).Grow(1)
 					if iconButton(c.Key("close-settings"), iconX, 16, p.muted, T("Close")).Clicked() {
-						a.settingsWin.Close()
+						a.closeSettings()
 					}
 				}
 			})
@@ -231,6 +259,41 @@ func (a *app) settingsView(c *ui.Context) {
 	})
 	a.installDialog(c, p)
 	a.signInDialog(c, p, true)
+}
+
+// settingsNarrow is the settings on a phone upright: a list of the pages,
+// then one page full width with a way back, rather than a sidebar beside
+// that would leave the rows no room.
+func (a *app) settingsNarrow(c *ui.Context, p palette, sections []settingsSection, current settingsSection, query string) {
+	ui.Column(c).Fill().Children(func() {
+		if a.settingsPage == "" {
+			ui.Column(c).Padding(12, 12, 8, 12).Gap(2).Background(p.sidebar).Children(func() {
+				a.settingsSearch(c, p)
+				for _, sec := range sections {
+					if query != "" && !a.settingsFinds(sec, query) {
+						continue
+					}
+					a.settingsNavItem(c, p, sec, false)
+				}
+			})
+			return
+		}
+		ui.Row(c).Height(topBar(c)).Padding(0, 12, 0, 8).Gap(8).AlignItems(ui.Center).Background(p.sidebar).Children(func() {
+			if iconButton(c.Key("settings-back"), iconBack, 18, p.muted, T("Back")).Clicked() {
+				a.settingsPage, a.settingsQuery = "", ""
+			}
+			ui.Text(c, current.title).FontSize(15).FontWeight(700).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+			if current.id == "plugins" {
+				a.installMenu(c, p)
+			}
+			if iconButton(c.Key("close-settings"), iconX, 16, p.muted, T("Close")).Clicked() {
+				a.closeSettings()
+			}
+		})
+		ui.Scroll(c.Key(current.id+"\x00"+query)).Fill().Padding(12, 12, 24, 12).Gap(8).Children(func() {
+			a.settingsGroup(c, p, current, "", "")
+		})
+	})
 }
 
 // settingsSidebarWidth is the width of the list of the settings' pages.

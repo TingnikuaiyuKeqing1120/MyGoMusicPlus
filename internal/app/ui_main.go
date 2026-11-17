@@ -20,6 +20,11 @@ func (a *app) view(c *ui.Context) {
 	t.Selection = p.accent.Alpha(0.3)
 	c.SetTheme(&t)
 
+	if onWeb && a.settingsWeb {
+		a.settingsView(c)
+		return
+	}
+
 	a.shortcuts(c)
 
 	// Back to the front, after the listener may have changed their
@@ -53,6 +58,23 @@ func (a *app) view(c *ui.Context) {
 				// of its frames as much again as the stage itself. Where
 				// it is scrolled is the app's (pageScroll, navScroll,
 				// trackList), so it shows again as it was.
+				return
+			}
+			if narrow(c) {
+				// A phone upright: the page takes the width, the sidebar a
+				// drawer over it, opened from the top bar.
+				ui.Box(c.Key("main")).Grow(1).Background(p.bg).Children(func() {
+					a.content(c)
+					a.pageTop(c)
+					a.playerBar(c)
+					a.batchBar(c)
+				})
+				if a.navOpen {
+					if ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Background(ui.RGBA(0, 0, 0, 0.35)).Clicked() {
+						a.navOpen = false
+					}
+					ui.Column(c).Absolute().Top(0).Left(0).Bottom(0).Width(sidebarWidth).Background(p.sidebar).Children(func() { a.sidebar(c) })
+				}
 				return
 			}
 			side := ui.Column(c).Width(sidebarWidth)
@@ -111,6 +133,7 @@ func (a *app) shortcuts(c *ui.Context) {
 // source makes that source the active one.
 func (a *app) open(r route) {
 	a.nowPlaying = false
+	a.navOpen = false
 	if r.src == "" {
 		r.src = a.route.src
 	}
@@ -320,6 +343,14 @@ func topBar(c *ui.Context) float32 {
 // topBarHeight is the least height of the strip along the top.
 const topBarHeight = 40
 
+// narrow reports whether the window is too narrow for the sidebar to sit
+// beside the page, as a phone held upright is: the sidebar becomes a drawer
+// and the settings a single column.
+func narrow(c *ui.Context) bool {
+	w := c.Root().Bounds().W
+	return w > 0 && w < 700
+}
+
 // startMark marks where a page's content starts, first in what scrolls:
 // once it has moved up, content is under the bar at the top.
 func (a *app) startMark(c *ui.Context) {
@@ -361,8 +392,17 @@ func (a *app) pageTop(c *ui.Context) {
 		Material(glass.ScrollEdge{Hard: true, Background: a.pal.bg})
 	// The pointer over it brings the edge up too, as AppKit's does.
 	edge.Opacity(edgeShown(edge, a.underTop || edge.Hovered()))
+	left := float32(20)
+	if narrow(c) {
+		left = 52
+		ui.Row(c).Absolute().Top(0).Left(12).Height(topBar(c)).AlignItems(ui.Center).Children(func() {
+			if iconButton(c.Key("nav"), iconMenu, 18, a.pal.muted, T("Menu")).Clicked() {
+				a.navOpen = !a.navOpen
+			}
+		})
+	}
 	if len(a.history) > 0 || len(a.forward) > 0 {
-		ui.Row(c).Absolute().Top(0).Left(20).Height(topBar(c)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Absolute().Top(0).Left(left).Height(topBar(c)).AlignItems(ui.Center).Children(func() {
 			back := iconButton(c.Key("back"), iconBack, 18, a.pal.muted, T("Back")).Disabled(len(a.history) == 0)
 			if len(a.history) == 0 {
 				back.Opacity(0.35)

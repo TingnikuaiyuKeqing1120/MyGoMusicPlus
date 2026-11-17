@@ -266,6 +266,7 @@ var zhCN = map[string]string{
 	"GD Music (Built-in)": "GD 音乐台（内置）",
 	"A built-in music source from GD Studio, installed in one click": "内置的 GD Studio 音乐源，一键安装",
 	"Sync":            "同步",
+	"Menu":            "菜单",
 	"GitHub Token":    "GitHub 令牌",
 	"A personal access token with repo access, kept on this device alone": "具有 repo 权限的个人访问令牌，仅保存在本设备",
 	"Repository":      "仓库",
