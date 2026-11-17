@@ -478,5 +478,6 @@ func Run() error {
 		a.openLink(link)
 	})
 	webLinkBridge(a)
+	webBackBridge(a)
 	return mygo.App.Run()
 }

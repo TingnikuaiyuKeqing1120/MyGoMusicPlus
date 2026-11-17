@@ -9,7 +9,10 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
 - 包名 `com.mygomusic.plus`，minSdk 26（Android 8.0+），targetSdk 35，debug 签名。
 
 ## 组成
-- `MainActivity`：WebView 加载 `file:///android_asset/web/index.html`；JS 桥 `AndroidBridge`；
+- `MainActivity`：WebView 经 `WebViewAssetLoader` 从虚拟 https 域
+  （`appassets.androidplatform.net/assets/web/`）加载壳（安全上下文，fetch/OPFS 可用）；
+  JS 桥 `AndroidBridge`；系统返回键转给 web 的 `__mygoBack`（`back_web.go` 按上下文
+  关对话框/抽屉/设置页/播放页/回退，无处可退才退出）；
   SAF 文件选择与下载导出（`ACTION_CREATE_DOCUMENT`）；`mygo-music://` App Links 转给 web
   （`window.__mygoLink` + `mygo-link` 事件，web 侧 `links_web.go` 接收）。
 - `PlaybackService`：`mediaPlayback` 前台服务 + 媒体通知 + `MediaSessionCompat` + 音频焦点；
@@ -35,7 +38,9 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
    ```
 
 ## 移动端已就绪
-- GD 音乐台内置一键安装（设置 → 插件 → 安装；或 + 菜单）。
+- GD 音乐台内置一键安装（设置 → 插件 → 安装；或 + 菜单）：优先拉取仓库
+  `TingnikuaiyuKeqing1120/gd-music-plugin` 的最新 release（记录 Origin，可检查更新），
+  断网时回退 App 内置副本。
 - GitHub 私有仓库同步（设置 → 同步）：令牌 + 仓库名，独立开关同步设置/歌单/插件，
   增量 merge + last-write-wins，定期 pull + 改动 debounce push。
 - 桌面-only UI 已收敛：浏览器/壳内隐藏托盘、原生文件夹/zip 选择、 reveal-in-folder、

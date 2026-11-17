@@ -19,19 +19,28 @@ var bundledGD embed.FS
 // bundledGDID is the built-in plugin's ID, as its manifest says.
 const bundledGDID = "gdstudio"
 
+// bundledGDRepo is where the built-in plugin is maintained: the one-click
+// install pulls its latest release from there, so it stays updatable, and
+// falls back to the copy embedded in the app when there's no network.
+const bundledGDRepo = "TingnikuaiyuKeqing1120/gd-music-plugin"
+
 // hasBundledGD reports whether the built-in plugin is installed already.
 func (a *app) hasBundledGD() bool {
 	return slices.ContainsFunc(a.allLibs, func(l *library) bool { return l.id == bundledGDID })
 }
 
 // installBundledGD offers the built-in plugin to install, asking about it as
-// one from this computer is asked about.
+// one from GitHub is asked about: its latest release from the repository, or
+// the copy embedded in the app if the repository can't be reached.
 func (a *app) installBundledGD() {
 	in := &a.installer
 	a.cancelInstall()
 	in.open, in.github, in.busy, in.err = true, false, true, ""
 	go func() {
-		pending, err := stageBundledGD()
+		pending, err := fetchPlugin(bundledGDRepo, pluginsDir())
+		if err != nil {
+			pending, err = stageBundledGD()
+		}
 		a.post(func() {
 			in.busy = false
 			if err != nil {
@@ -43,10 +52,16 @@ func (a *app) installBundledGD() {
 	}()
 }
 
-// stageBundledGD writes the built-in plugin out to ask about it, as one
-// picked from a folder.
+// stageBundledGD writes the embedded copy out to ask about it, as one picked
+// from a folder, but of the repository so it can be checked for updates. The
+// staging folder sits with the plugins, not in /tmp, which a browser's
+// filesystem doesn't have.
 func stageBundledGD() (*plugin.Pending, error) {
-	tmp, err := os.MkdirTemp("", "mygo-gd-")
+	base := pluginsDir()
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		return nil, err
+	}
+	tmp, err := os.MkdirTemp(base, ".gd-stage-")
 	if err != nil {
 		return nil, err
 	}
@@ -64,5 +79,10 @@ func stageBundledGD() (*plugin.Pending, error) {
 	if err != nil {
 		return nil, err
 	}
-	return openPlugin(tmp, pluginsDir())
+	p, err := openPlugin(tmp, pluginsDir())
+	if err != nil {
+		return nil, err
+	}
+	p.Repo = bundledGDRepo
+	return p, nil
 }

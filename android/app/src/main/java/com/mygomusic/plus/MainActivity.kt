@@ -164,6 +164,15 @@ class MainActivity : Activity() {
         }
     }
 
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        // The app takes the button while it has somewhere to go back to;
+        // before wasm boots, or at the app's root, the system has it instead.
+        web.evaluateJavascript("globalThis.__mygoBack ? __mygoBack() : false") { handled ->
+            if (handled != "true") super.onBackPressed()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         web.onResume()
