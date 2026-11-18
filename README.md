@@ -4,6 +4,14 @@ MyGo Music Plus plays local music and plugin sources. The Windows player has a n
 
 Plus releases include a Windows x64 installer and an Android APK. On Windows, run the new installer to upgrade. On Android, Settings → Updates checks for a release and opens the system installer. [Download MyGo Music Plus](https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/releases/latest)
 
+### Import your Windows library from MyGo Music
+
+Quit **MyGo Music** and **MyGo Music Plus** from their tray menus, then double-click **Import to MyGo Music Plus.cmd** and type `IMPORT` to confirm. The tool works with an existing Windows Plus installation. In a source checkout, it is in [resources/windows](resources/windows). Run `import-profile.ps1` without arguments for a read-only preview.
+
+The import reads `%APPDATA%\MyGo Music` and writes to `%APPDATA%\MyGo Music Plus`. It copies the local library and music folder paths, playback session, window state, downloaded speech models, plugins and their private data (including GD Music playlists, stored sign-ins and permission grants). Audio files stay in their original folders. Upstream preferences take precedence for shared settings. Plus-specific settings and plugins installed only in Plus are kept. A source library or matching plugin replaces its Plus counterpart.
+
+The tool prints the backup path for the complete previous Plus profile. To undo the import, quit Plus, move its current profile aside, and copy the backup's `before` directory back as `%APPDATA%\MyGo Music Plus`. Windows Plus Dev keeps its own test profile. Subsequent edits in each player stay local unless you enable Plus's GitHub sync.
+
 ## Features
 
 - Local files (MP3, FLAC, Ogg Vorbis, WAV, and ALAC, FLAC or AAC in .m4a and .aac) with tags, covers and `.lrc` lyrics
