@@ -68,6 +68,13 @@ jobs:
           codesign --verify --deep --strict "$app"
       - name: Install the signed update in a disposable player directory
         run: node scripts/release/test-desktop-update.mjs "build/$TARGET" "$TARGET"
+      - name: Build the standalone Windows player
+        if: runner.os == 'Windows'
+        env:
+          MYGO_PLUS_DESKTOP: standalone
+        run: |
+          go tool mygo build -platform "$PLATFORM" -skip-installer -o build/standalone
+          cp "build/standalone/$TARGET/MyGo Music Plus.exe" "build/$TARGET/MyGoMusicPlus-standalone-windows-x64.exe"
       - uses: actions/upload-artifact@v7
         with:
           name: plus-${{ matrix.target }}
@@ -76,6 +83,7 @@ jobs:
             build/${{ matrix.target }}/update-*.json
             build/${{ matrix.target }}/*.tar.gz
             build/${{ matrix.target }}/*-setup-*.exe
+            build/${{ matrix.target }}/MyGoMusicPlus-standalone-windows-x64.exe
             build/${{ matrix.target }}/*.dmg
             build/${{ matrix.target }}/*.deb
             build/${{ matrix.target }}/*.rpm

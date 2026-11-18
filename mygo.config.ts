@@ -6,7 +6,8 @@ export default ({ command }: { command: string }) => {
   // Local Plus packages have their own data folder and protocol registration.
   const profile = command === "build" ? process.env.MYGO_PLUS_DESKTOP : undefined;
   const plusDev = profile === "dev";
-  const plusDesktop = profile === "1" || plusDev;
+  const standalone = profile === "standalone";
+  const plusDesktop = profile === "1" || plusDev || standalone;
   const name = plusDesktop ? "MyGo Music Plus" : "MyGo Music";
   const slug = plusDesktop ? "mygo-music-plus" : "mygo-music";
   return {
@@ -14,10 +15,12 @@ export default ({ command }: { command: string }) => {
     identifier: plusDev ? "com.mygomusic.plus.dev" : plusDesktop ? "com.mygomusic.plus" : "dev.egoist.music",
     slug: plusDev ? slug + "-dev" : slug,
     icon: plusDesktop ? "resources/plus-rain-cat.png" : undefined,
-    version: "0.2.3",
+    version: "0.3.0",
     out: "build",
     urlSchemes: [plusDev || command === "dev" ? slug + "-dev" : slug],
-    updates: plusDev ? undefined : plusDesktop ? {
+    // Installed updates replace a directory of packaged resources. Standalone
+    // users can put the EXE anywhere and replace that one file to upgrade.
+    updates: plusDev || standalone ? undefined : plusDesktop ? {
       github: "TingnikuaiyuKeqing1120/MyGoMusicPlus",
       publicKey: readFileSync(new URL("./scripts/release/plus-update.pub", import.meta.url), "utf8").trim(),
       deltas: 0,

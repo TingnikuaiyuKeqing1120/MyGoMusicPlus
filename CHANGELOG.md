@@ -2,6 +2,12 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.3.0] - 2026-11-18
+
+- Import an original MyGo Music desktop profile from Settings → Sync. Plus backs up its current data before importing the library, preferences, plugins and their stored data.
+- Installed desktop builds support signed updates on Windows x64, both macOS architectures and Linux x64/ARM64. Windows users upgrading from v0.2.3 need to run the new installer once.
+- Windows also has a standalone EXE. It uses the installed edition's profile and can be upgraded by replacing the file after quitting the player.
+
 ## [0.2.3] - 2026-11-18
 
 ### Changed
@@ -283,6 +289,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.3.0]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.0...v0.2.1
