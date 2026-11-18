@@ -89,7 +89,7 @@ func (a *app) applyTray() {
 		icon, template := trayColor, false
 		if runtime.GOOS == "darwin" {
 			icon, template = trayTemplate, true
-		} else if runtime.GOOS == "windows" && mygo.App.Name() == "MyGo Music Plus" {
+		} else if runtime.GOOS == "windows" && (linkScheme == "mygo-music-plus" || linkScheme == "mygo-music-plus-dev") {
 			icon = trayPlus
 		}
 		t, err := mygo.NewTray(mygo.TrayOptions{ID: "mygo-music", Icon: icon, IconIsTemplate: template, ToolTip: mygo.App.Name(), Menu: a.trayMenu()})
