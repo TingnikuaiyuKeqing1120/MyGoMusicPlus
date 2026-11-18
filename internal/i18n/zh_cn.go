@@ -120,6 +120,7 @@ var zhCN = map[string]string{
 	"Checking for updates…":      "正在检查更新…",
 	"Up to date":                 "已是最新",
 	"Open on GitHub":             "在 GitHub 上打开",
+	"Open Releases":              "打开发布页",
 	"Allow Programs":             "允许启动程序",
 	"Stop Allowing":              "不再允许",
 	"Couldn't change that":       "无法更改",
@@ -239,6 +240,7 @@ var zhCN = map[string]string{
 	"Search Settings":                        "搜索设置",
 	"No settings found":                      "没有找到相关设置",
 	"Plugin":                                 "插件",
+	"Music Source":                           "音源",
 	"Plugins":                                "插件",
 	"Built-in":                               "自带",
 	"Enable %s":                              "启用 %s",
@@ -447,4 +449,9 @@ var zhCN = map[string]string{
 	"an hour ago":                                                   "1 小时前",
 	"just now":                                                      "刚刚",
 	"yesterday":                                                     "昨天",
+
+	"Couldn't choose a music folder: %s":              "无法选择音乐文件夹：%s",
+	"Folder selection is unavailable in this browser": "此浏览器不支持选择文件夹",
+	"The system folder picker is unavailable":         "系统文件夹选择器不可用",
+	"The selected folder couldn't be opened":          "无法打开选中的文件夹",
 }

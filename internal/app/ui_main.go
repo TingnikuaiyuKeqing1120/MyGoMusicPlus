@@ -245,7 +245,9 @@ func (a *app) sidebar(c *ui.Context) {
 	// Where nothing in it takes the press, the sidebar moves the window, as
 	// the title bar it reaches up into would.
 	ui.Column(c).Fill().Padding(top, 14, 14, 14).Gap(4).DragWindow().Children(func() {
-		a.sourceSwitcher(c)
+		if !narrow(c) {
+			a.sourceSwitcher(c, false)
+		}
 		if a.can("search") {
 			a.searchField(c)
 		}
@@ -392,17 +394,22 @@ func (a *app) pageTop(c *ui.Context) {
 		Material(glass.ScrollEdge{Hard: true, Background: a.pal.bg})
 	// The pointer over it brings the edge up too, as AppKit's does.
 	edge.Opacity(edgeShown(edge, a.underTop || edge.Hovered()))
+	compact := narrow(c)
+	hasHistory := len(a.history) > 0 || len(a.forward) > 0
+	if !compact && !hasHistory {
+		return
+	}
 	left := float32(20)
-	if narrow(c) {
-		left = 52
-		ui.Row(c).Absolute().Top(0).Left(12).Height(topBar(c)).AlignItems(ui.Center).Children(func() {
+	if compact {
+		left = 12
+	}
+	ui.Row(c.Key("page-navigation")).Absolute().Top(0).Left(left).Height(topBar(c)).Gap(4).AlignItems(ui.Center).Children(func() {
+		if compact {
 			if iconButton(c.Key("nav"), iconMenu, 18, a.pal.muted, T("Menu")).Clicked() {
 				a.navOpen = !a.navOpen
 			}
-		})
-	}
-	if len(a.history) > 0 || len(a.forward) > 0 {
-		ui.Row(c).Absolute().Top(0).Left(left).Height(topBar(c)).AlignItems(ui.Center).Children(func() {
+		}
+		if hasHistory {
 			back := iconButton(c.Key("back"), iconBack, 18, a.pal.muted, T("Back")).Disabled(len(a.history) == 0)
 			if len(a.history) == 0 {
 				back.Opacity(0.35)
@@ -413,8 +420,11 @@ func (a *app) pageTop(c *ui.Context) {
 			if len(a.forward) > 0 && iconButton(c.Key("forward"), iconForward, 18, a.pal.muted, T("Forward")).Clicked() {
 				a.goForward()
 			}
-		})
-	}
+		}
+		if compact {
+			a.sourceSwitcher(c, true)
+		}
+	})
 }
 
 func (a *app) content(c *ui.Context) {
@@ -692,22 +702,24 @@ func (a *app) builtinTitle(name string) string {
 	return T(builtinPages[name].label)
 }
 
-// sourceSwitcher chooses the active source, once there is another. It takes no
-// room of its own: beside the window buttons where they sit over the sidebar, in
-// the strip they leave empty, and elsewhere just a line of text atop it. It
-// drops down a list of the sources, in the colors of the account menu, with a
-// check by the active one.
-func (a *app) sourceSwitcher(c *ui.Context) {
+// sourceSwitcher chooses the active source from the sidebar, or from the page
+// header when the sidebar is a drawer.
+func (a *app) sourceSwitcher(c *ui.Context, compact bool) {
 	if len(a.libs) < 2 {
 		return
 	}
 	p := a.pal
-	const height = 24
+	height := float32(24)
+	if compact {
+		height = 36
+	}
 	chosen := a.library.id
 	sel := ui.SelectBase(c.Key("source"), &chosen)
 	b := sel.Trigger.Height(height).PaddingX(7).Gap(4).Radius(7).AlignItems(ui.Center).
-		FocusRing(false).Label(T("Plugin"))
-	if left := c.TitleBar().Left; left > 0 {
+		Label(T("Music Source"))
+	if compact {
+		b.PaddingX(10).MaxWidth(172).Background(p.hover)
+	} else if left := c.TitleBar().Left; left > 0 {
 		b.Absolute().Top((topBar(c) - height) / 2).Left(left + 12).MaxWidth(sidebarWidth - left - 22)
 	} else {
 		b.AlignSelf(ui.Start).Margin(0, 0, 4, -7).MaxWidth(sidebarWidth - 28)

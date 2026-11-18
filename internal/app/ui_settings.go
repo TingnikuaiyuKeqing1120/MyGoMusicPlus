@@ -25,6 +25,7 @@ func (a *app) openSettings() {
 	if onWeb {
 		// One window: the settings are a page of it, not a second WebGL
 		// context, which weak phone GPUs can't carry.
+		a.navOpen = false
 		a.settingsWeb = true
 		a.measureCache()
 		a.redraw()
@@ -77,7 +78,7 @@ func (a *app) openSourceSettings() {
 // closeSettings puts the settings away: a page of the main window on the web,
 // its own window elsewhere.
 func (a *app) closeSettings() {
-	if onWeb {
+	if a.settingsWeb {
 		a.settingsWeb = false
 		a.redraw()
 		return
@@ -85,6 +86,14 @@ func (a *app) closeSettings() {
 	if a.settingsWin != nil {
 		a.settingsWin.Close()
 	}
+}
+
+func (a *app) backSettings() {
+	if a.settingsPage == "" {
+		a.closeSettings()
+		return
+	}
+	a.settingsPage, a.settingsQuery = "", ""
 }
 
 // changed applies the settings everywhere and keeps them.
@@ -265,8 +274,23 @@ func (a *app) settingsView(c *ui.Context) {
 // then one page full width with a way back, rather than a sidebar beside
 // that would leave the rows no room.
 func (a *app) settingsNarrow(c *ui.Context, p palette, sections []settingsSection, current settingsSection, query string) {
+	atList := a.settingsPage == ""
 	ui.Column(c).Fill().Children(func() {
-		if a.settingsPage == "" {
+		ui.Row(c).Height(topBar(c)).Padding(0, 12, 0, 8).Gap(8).AlignItems(ui.Center).Background(p.sidebar).Children(func() {
+			iconButton(c.Key("settings-back"), iconBack, 18, p.muted, T("Back")).OnClick(a.backSettings)
+			title := current.title
+			if atList {
+				title = T("Settings")
+			}
+			ui.Text(c, title).FontSize(15).FontWeight(700).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+			if !atList && current.id == "plugins" {
+				a.installMenu(c, p)
+			}
+			if !atList {
+				iconButton(c.Key("close-settings"), iconX, 16, p.muted, T("Close")).OnClick(a.closeSettings)
+			}
+		})
+		if atList {
 			ui.Column(c).Padding(12, 12, 8, 12).Gap(2).Background(p.sidebar).Children(func() {
 				a.settingsSearch(c, p)
 				for _, sec := range sections {
@@ -278,18 +302,6 @@ func (a *app) settingsNarrow(c *ui.Context, p palette, sections []settingsSectio
 			})
 			return
 		}
-		ui.Row(c).Height(topBar(c)).Padding(0, 12, 0, 8).Gap(8).AlignItems(ui.Center).Background(p.sidebar).Children(func() {
-			if iconButton(c.Key("settings-back"), iconBack, 18, p.muted, T("Back")).Clicked() {
-				a.settingsPage, a.settingsQuery = "", ""
-			}
-			ui.Text(c, current.title).FontSize(15).FontWeight(700).Grow(1).Shrink(1).MinWidth(0).SingleLine()
-			if current.id == "plugins" {
-				a.installMenu(c, p)
-			}
-			if iconButton(c.Key("close-settings"), iconX, 16, p.muted, T("Close")).Clicked() {
-				a.closeSettings()
-			}
-		})
 		ui.Scroll(c.Key(current.id+"\x00"+query)).Fill().Padding(12, 12, 24, 12).Gap(8).Children(func() {
 			a.settingsGroup(c, p, current, "", "")
 		})
@@ -637,6 +649,14 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 				})
 			}
 		})
+	} else if mygo.App.IsPackaged() {
+		add("updates", T("Updates"), iconRefresh, func(row settingsRow, block settingsBlock) {
+			row(Tf("Current Version %s", mygo.App.Version()), "", func() {
+				if ui.Button(c.Key("open-releases"), T("Open Releases")).Clicked() {
+					mygo.Shell.OpenExternal("https://github.com/" + plusRepo + "/releases")
+				}
+			})
+		})
 	}
 	return sections
 }
@@ -700,7 +720,7 @@ func (a *app) localSettings(c *ui.Context, lib *library, row settingsRow, block 
 			if enabled && len(folders) > 0 && ui.Button(c.Key("rescan"), T("Rescan")).Disabled(a.local.Scanning()).Clicked() {
 				a.local.Rescan()
 			}
-			if enabled && !onWeb && ui.Button(c.Key("add-folder"), T("Add Folder…")).Clicked() {
+			if enabled && ui.Button(c.Key("add-folder"), T("Add Folder…")).Disabled(a.folderPicking).Clicked() {
 				a.addMusicFolder()
 			}
 			a.pluginSwitch(c, lib)
@@ -709,11 +729,17 @@ func (a *app) localSettings(c *ui.Context, lib *library, row settingsRow, block 
 	if !enabled {
 		return
 	}
+	if a.folderErr != "" {
+		block(T("Add Folder…"), func() {
+			ui.Text(c, a.folderErr).FontSize(12).TextColor(p.accent).Padding(8, 16).LineHeight(1.4)
+		})
+	}
 	for _, dir := range folders {
-		block(dir, func() {
+		name := musicFolderName(dir)
+		block(name, func() {
 			ui.Row(c.Key(dir)).Padding(8, 16).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconFolder).Size(15, 15).TextColor(p.muted)
-				ui.Text(c, dir).FontSize(12.5).SingleLine().Grow(1).Shrink(1).MinWidth(0)
+				ui.Text(c, name).FontSize(12.5).SingleLine().Grow(1).Shrink(1).MinWidth(0)
 				if ui.Button(c.Key("remove"), T("Remove")).Clicked() {
 					a.local.RemoveFolder(dir)
 				}

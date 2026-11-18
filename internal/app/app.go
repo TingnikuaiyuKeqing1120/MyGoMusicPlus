@@ -70,10 +70,12 @@ type app struct {
 	// lists, and what comes back from a goroutine goes to the library it asked.
 	libs []*library
 	*library
-	local   *local.Source // the built-in source, nil in tests that have none
-	plugins []*plugin.Plugin
-	headers *headerPlugins // the plugins on, for the headers of their pictures
-	allLibs []*library     // every plugin, on or off; libs are those on
+	local         *local.Source // the built-in source, nil in tests that have none
+	plugins       []*plugin.Plugin
+	headers       *headerPlugins // the plugins on, for the headers of their pictures
+	allLibs       []*library     // every plugin, on or off; libs are those on
+	folderPicking bool
+	folderErr     string
 
 	wasBehind bool // the window wasn't at the front as last built
 
@@ -361,7 +363,7 @@ func Run() error {
 		queueAt:     -1,
 		cacheUsed:   -1,
 	}
-	if !onWeb {
+	if !onWeb && mygo.Updater.Enabled() {
 		a.useUpdater(i18n.Resolve(loadSettings().Language, systemLanguages()))
 	}
 	mygo.App.WhenReady(func() {

@@ -458,7 +458,7 @@ func download(url, path string) error {
 	if strings.Contains(url, "/releases/assets/") {
 		accept = "application/octet-stream"
 	}
-	res, err := githubSend(url, accept)
+	res, err := githubSend(archiveRequestURL(url), accept)
 	if err != nil {
 		return err
 	}
@@ -618,11 +618,16 @@ func versionNumbers(tag string) ([]int, bool) {
 // Discard forgets a plugin that won't be installed.
 func (p *Pending) Discard() { os.RemoveAll(p.tmp) }
 
+// Keep another install or removal from moving a tree while its writes commit.
+var installMu sync.Mutex
+
 // Install puts the plugin in the plugins' folder dir, in place of the one it
 // replaces, if any, whose data stays. A plugin of that name from elsewhere stays
 // too: the new one can't take its name, and what it signed in to. One from this
 // machine is from nowhere, as one dropped in is, and replaces only such.
 func (p *Pending) Install(dir string) error {
+	installMu.Lock()
+	defer installMu.Unlock()
 	defer os.RemoveAll(p.tmp)
 	target := filepath.Join(dir, p.Manifest.ID)
 	if _, err := os.Stat(target); err == nil {
@@ -655,7 +660,27 @@ func (p *Pending) Install(dir string) error {
 		}
 		return err
 	}
+	if runtime.GOOS == "js" {
+		// A web rename updates the live filesystem. Wait for its writeback
+		// before reporting the install, since the shell could close immediately.
+		if err := syncPluginDir(target); err != nil {
+			os.Rename(target, p.root)
+			if hadOne {
+				os.Rename(old, target)
+			}
+			return fmt.Errorf("keep plugin on disk: %w", err)
+		}
+	}
 	return nil
+}
+
+func syncPluginDir(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return f.Sync()
 }
 
 // Remove takes a plugin's folder away once it has stopped, with trash, which moves
@@ -663,6 +688,8 @@ func (p *Pending) Install(dir string) error {
 // Its data stays, for it to find if it's installed again.
 func (p *Plugin) Remove(trash func(path string) error) error {
 	p.Close()
+	installMu.Lock()
+	defer installMu.Unlock()
 	if trash != nil && trash(p.dir) == nil {
 		return nil
 	}

@@ -22,6 +22,16 @@ go tool mygo build   # package into build/
 go test ./internal/...
 ```
 
+Build the local Windows x64 package of MyGo Music Plus in PowerShell.
+
+```powershell
+$env:MYGO_PLUS_DESKTOP = '1'
+go tool mygo build -platform windows/amd64 -o build/windows-plus
+```
+
+The Plus package can run alongside MyGo Music. It uses its own settings folder
+and `mygo-music-plus://` links. Use `-skip-installer` for the unpackaged app alone.
+
 ## Podcast captions
 
 Episodes are written down on the device as they play, with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and Qwen3-ASR, which the app downloads when the listener asks for them. The libraries come from this repository's `sherpa-onnx-<version>` prerelease, which only changes with that version:

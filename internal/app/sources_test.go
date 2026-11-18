@@ -30,7 +30,7 @@ func addOther(a *app) (*fakeSource, *library) {
 // chooseSource chooses a source with the sidebar's switcher.
 func chooseSource(t *testing.T, tt *ui.Tester, name string) {
 	t.Helper()
-	if err := tt.Click("Plugin"); err != nil {
+	if err := tt.Click("Music Source"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -45,12 +45,12 @@ func TestSwitcherNeedsAnotherSource(t *testing.T) {
 	a := newTestApp()
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
-	if _, ok := tt.Find("Plugin"); ok {
+	if _, ok := tt.Find("Music Source"); ok {
 		t.Error("a switcher with nothing to switch to")
 	}
 	addOther(a)
 	tt.Frame()
-	if _, ok := tt.Find("Plugin"); !ok {
+	if _, ok := tt.Find("Music Source"); !ok {
 		t.Error("no switcher with two sources")
 	}
 }
@@ -63,7 +63,7 @@ func TestSwitchSourceWithKeys(t *testing.T) {
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 
-	if err := tt.Click("Plugin"); err != nil {
+	if err := tt.Click("Music Source"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -88,6 +88,18 @@ func TestSwitchSourceWithKeys(t *testing.T) {
 	}
 	if _, ok := tt.Find("fake"); ok {
 		t.Error("the dropdown stayed open")
+	}
+}
+
+// On a phone, the source dropdown opens and switches sources with the drawer closed.
+func TestSwitchSourceFromNarrowHeader(t *testing.T) {
+	a := newTestApp()
+	_, lib := addOther(a)
+	tt := ui.NewTester(a.view, 390, 780)
+	tt.Frame()
+	chooseSource(t, tt, "Other")
+	if a.library != lib || a.route.src != lib.id || a.navOpen {
+		t.Fatalf("active %q, route %+v, drawer open %v", a.library.id, a.route, a.navOpen)
 	}
 }
 

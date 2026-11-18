@@ -3,6 +3,8 @@ package com.mygomusic.plus
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.webkit.ValueCallback
@@ -12,6 +14,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.core.view.WindowCompat
 import androidx.webkit.WebViewAssetLoader
 
 // MainActivity hosts the MyGo web build (wasm) in a WebView. The web shell's
@@ -21,11 +24,13 @@ class MainActivity : Activity() {
 
     private lateinit var web: WebView
     private lateinit var assetLoader: WebViewAssetLoader
+    private lateinit var musicFolders: MusicFolders
     private var fileChooser: ValueCallback<Array<Uri>>? = null
 
     companion object {
         private const val REQ_FILE = 41
         private const val REQ_SAVE = 42
+        private const val REQ_MUSIC_FOLDER = 43
         private var saveBytes: ByteArray? = null
         private var saveName: String? = null
     }
@@ -42,6 +47,7 @@ class MainActivity : Activity() {
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(root)
+        colorSystemBars(resources.configuration.isNightMode())
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
@@ -56,11 +62,14 @@ class MainActivity : Activity() {
             allowContentAccess = true
             mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
-        web.addJavascriptInterface(Bridge(this), "AndroidBridge")
+        web.addJavascriptInterface(Bridge(this) { runOnUiThread { chooseMusicFolder() } }, "AndroidBridge")
         // Serve assets over a virtual https domain: fetch() and OPFS need a
         // secure context, which file:///android_asset is not.
+        musicFolders = MusicFolders(contentResolver)
         assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .addPathHandler("/native-music/", musicFolders)
+            .addPathHandler("/native-github/", GitHubArchives())
             .build()
         WebLink.control = { action ->
             runOnUiThread {
@@ -135,6 +144,41 @@ class MainActivity : Activity() {
         web.loadUrl("https://appassets.androidplatform.net/assets/web/index.html")
     }
 
+    private fun chooseMusicFolder() {
+        val picker = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+        )
+        try {
+            startActivityForResult(picker, REQ_MUSIC_FOLDER)
+        } catch (e: android.content.ActivityNotFoundException) {
+            deliverMusicFolder(error = "The system folder picker is unavailable")
+        }
+    }
+
+    private fun deliverMusicFolder(token: String = "", name: String = "", error: String = "") {
+        if (isDestroyed) return
+        val args = listOf(token, name, error).joinToString(",") { org.json.JSONObject.quote(it) }
+        web.evaluateJavascript("globalThis.__mygoMusicFolderPicked?.($args)", null)
+    }
+
+    override fun onConfigurationChanged(configuration: Configuration) {
+        super.onConfigurationChanged(configuration)
+        val dark = configuration.isNightMode()
+        colorSystemBars(dark)
+        val theme = if (dark) "dark" else "light"
+        web.evaluateJavascript("document.documentElement?.setAttribute('data-mygo-theme', '$theme')", null)
+    }
+
+    private fun colorSystemBars(dark: Boolean) {
+        val background = if (dark) Color.rgb(20, 20, 22) else Color.WHITE
+        window.decorView.setBackgroundColor(background)
+        web.setBackgroundColor(background)
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
+        }
+    }
+
     private fun deliverLink(i: Intent?) {
         val data = i?.data ?: return
         if (data.scheme != "mygo-music") return
@@ -154,6 +198,21 @@ class MainActivity : Activity() {
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
         super.onActivityResult(req, res, data)
         when (req) {
+            REQ_MUSIC_FOLDER -> {
+                val uri = data?.data
+                if (res != RESULT_OK || uri == null) {
+                    deliverMusicFolder()
+                } else {
+                    Thread {
+                        try {
+                            val (token, name) = musicFolders.remember(uri)
+                            runOnUiThread { deliverMusicFolder(token, name) }
+                        } catch (e: Exception) {
+                            runOnUiThread { deliverMusicFolder(error = "The selected folder couldn't be opened") }
+                        }
+                    }.start()
+                }
+            }
             REQ_FILE -> {
                 val uris = mutableListOf<Uri>()
                 data?.data?.let { uris.add(it) }

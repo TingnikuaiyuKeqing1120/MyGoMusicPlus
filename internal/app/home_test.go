@@ -324,7 +324,7 @@ func TestHomeEmptyState(t *testing.T) {
 func TestLocalEmptyHomeAddsFolder(t *testing.T) {
 	asked := 0
 	real := pickFolders
-	pickFolders = func(*app, func([]string)) { asked++ }
+	pickFolders = func(*app, func([]string, error)) { asked++ }
 	defer func() { pickFolders = real }()
 
 	a := localApp(t)

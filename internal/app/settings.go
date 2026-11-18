@@ -97,22 +97,14 @@ func defaultSettings() settings {
 	return settings{Language: i18n.System, NotchActivity: true, Quality: "high", Appearance: "system", Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048}
 }
 
-func settingsPath() (string, error) {
-	dir, err := mygo.App.Path(mygo.PathUserData)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "settings.json"), nil
-}
-
 // loadSettings reads the settings, or returns the defaults.
 func loadSettings() settings {
 	s := defaultSettings()
-	if path, err := settingsPath(); err == nil {
-		if b, err := os.ReadFile(path); err == nil {
-			json.Unmarshal(b, &s)
-		}
-		s.path = path
+	// WebView may have no user config directory. Use the same fallback as
+	// the plugins and local library so the listener's choices survive a reload.
+	s.path = userDataDir("settings.json")
+	if b, err := os.ReadFile(s.path); err == nil {
+		json.Unmarshal(b, &s)
 	}
 	return s
 }

@@ -27,6 +27,9 @@ import (
 // linkScheme is the scheme of the app's links, declared in mygo.config.ts: the
 // development app's is its own, which leaves the installed app's links to it.
 var linkScheme = func() string {
+	if !onWeb && mygo.App.Name() == "MyGo Music Plus" {
+		return "mygo-music-plus"
+	}
 	if mygo.IsDev() {
 		return "mygo-music-dev"
 	}

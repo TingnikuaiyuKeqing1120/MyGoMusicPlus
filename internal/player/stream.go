@@ -233,6 +233,11 @@ func (d *download) release() {
 
 // Progress returns the share of the song downloaded so far.
 func (d *download) Progress() float64 {
+	// A file opened whole is already complete. A read of it on the web can
+	// be waiting for JavaScript, so the UI must not wait on the reader's lock.
+	if d.onDisk {
+		return 1
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.done && d.err == nil {

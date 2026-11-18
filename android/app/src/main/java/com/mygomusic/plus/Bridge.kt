@@ -2,13 +2,26 @@ package com.mygomusic.plus
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.webkit.JavascriptInterface
+
+internal fun Configuration.isNightMode(): Boolean =
+    (uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
 // Bridge is the JS->native surface the web media-bridge calls. It forwards
 // playback metadata/state/position to PlaybackService (notification, lock
 // screen, audio focus) and offers share / open-external.
-class Bridge(private val ctx: Context) {
+class Bridge(private val ctx: Context, private val chooseMusicFolder: () -> Unit) {
+
+    @JavascriptInterface
+    fun pickMusicFolder() = chooseMusicFolder()
+
+    @JavascriptInterface
+    fun systemDark(): Boolean = ctx.resources.configuration.isNightMode()
+
+    @JavascriptInterface
+    fun hasGitHubArchiveLoader(): Boolean = true
 
     private fun toService(key: String, value: String) {
         val i = Intent(ctx, PlaybackService::class.java).putExtra(key, value)

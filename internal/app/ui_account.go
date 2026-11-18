@@ -5,23 +5,11 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"mygo-music/internal/music"
 	"rsc.io/qr"
 )
-
-// mygoOpenFolders asks for folders of music with the native dialog.
-func mygoOpenFolders(a *app) ([]string, error) {
-	return mygo.Dialog.Open(mygo.OpenDialogOptions{
-		Title:             T("Add a Music Folder"),
-		ButtonLabel:       T("Add"),
-		Directory:         true,
-		Multiple:          true,
-		CreateDirectories: false,
-	})
-}
 
 // signInDialog is signing in to a source. The source does it its own way, in
 // the listener's browser or wherever, which can take minutes.

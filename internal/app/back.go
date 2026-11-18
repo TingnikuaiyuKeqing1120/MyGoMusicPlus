@@ -25,10 +25,8 @@ func (a *app) shellBack() bool {
 		}
 	case a.navOpen:
 		step = func() { a.navOpen = false }
-	case a.settingsWeb && a.settingsPage != "":
-		step = func() { a.settingsPage, a.settingsQuery = "", "" }
 	case a.settingsWeb:
-		step = func() { a.settingsWeb = false }
+		step = a.backSettings
 	case a.nowPlaying || len(a.history) > 0:
 		step = a.back
 	default:

@@ -1,6 +1,10 @@
 package app
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/egoist/mygo/ui"
+)
 
 // The shell's back button closes what's on top first: the dialogs, the
 // drawer, the settings one page at a time, Now Playing, then the page
@@ -63,5 +67,29 @@ func TestShellBack(t *testing.T) {
 	}
 	if a.shellBack() {
 		t.Error("at the root the app kept the button instead of leaving the app")
+	}
+}
+
+// Back in the phone settings goes to the section list, then to the player.
+func TestNarrowSettingsBack(t *testing.T) {
+	a := newTestApp()
+	a.settingsWeb, a.settingsPage = true, "general"
+	was := onWeb
+	onWeb = true
+	defer func() { onWeb = was }()
+	tt := ui.NewTester(a.view, 390, 780)
+	tt.Frame()
+	if err := tt.Click("Back"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.settingsWeb || a.settingsPage != "" {
+		t.Fatal("Back didn't return from General to the settings list")
+	}
+	if err := tt.Click("Back"); err != nil {
+		t.Fatal(err)
+	}
+	if a.settingsWeb {
+		t.Error("Back from the settings list left the settings open")
 	}
 }

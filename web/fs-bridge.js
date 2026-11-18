@@ -37,6 +37,11 @@
   const err = (code) => { const e = new Error(code); e.code = code; return e; };
   const isDir = (p) => dirs.has(p);
   const isFile = (p) => files.has(p);
+  const music = globalThis.__mygoMusicFolders;
+  const inMusic = (p) => music?.contains(p);
+  const readError = (e) => err(typeof e.code === "string" ? e.code :
+    ({ NotFoundError: "ENOENT", NotAllowedError: "EACCES", SecurityError: "EACCES" }[e.name] || "EIO"));
+  const answer = (promise, cb, found) => promise.then(found, e => cb(readError(e)));
 
   function ensureDirs(p) {
     let cur = "";
@@ -45,12 +50,12 @@
       dirs.add(cur);
     }
   }
-  function statOf(p) {
+  function statOf(p, mounted) {
     const f = files.get(p);
-    const dir = isDir(p);
-    const ms = f ? f.mtime : Date.now();
-    const size = f ? f.data.length : 0;
-    const mode = dir ? 0o40755 : 0o100644;
+    const dir = mounted?.dir ?? isDir(p);
+    const ms = mounted?.mtime ?? f?.mtime ?? Date.now();
+    const size = mounted?.size ?? f?.data.length ?? 0;
+    const mode = (dir ? 0o40755 : 0o100644) & (mounted ? ~0o222 : ~0);
     const st = {
       dev: 0, ino: 0, mode, nlink: 1, uid: 0, gid: 0, rdev: 0,
       size, blksize: 4096, blocks: Math.ceil(size / 512),
@@ -67,6 +72,7 @@
   // ---- OPFS write-back ----
   let opfsRoot = null;
   let flushTimer = null;
+  let writeback = Promise.resolve();
   async function opfs() {
     if (opfsRoot) return opfsRoot;
     if (!navigator.storage || !navigator.storage.getDirectory) return null;
@@ -76,39 +82,71 @@
   async function dirHandle(root, p, create) {
     let h = root;
     for (const seg of p.split("/").filter(Boolean)) {
-      h = await h.getDirectoryHandle(seg, { create });
+      h = create ? await createHandle(h, seg, "getDirectoryHandle") : await h.getDirectoryHandle(seg);
     }
     return h;
   }
-  async function flush() {
+  async function createHandle(dir, name, method) {
+    try {
+      return await dir[method](name, { create: true });
+    } catch (e) {
+      // An update can replace a directory with a file, or the reverse.
+      if (e.name !== "TypeMismatchError") throw e;
+      await dir.removeEntry(name, { recursive: true });
+      return dir[method](name, { create: true });
+    }
+  }
+  async function flushChanges() {
+    if (!dirty.size && !removed.size) return;
     const root = await opfs();
-    if (!root) return;
+    if (!root) throw err("ENOSYS");
     const toWrite = [...dirty]; dirty.clear();
     const toRemove = [...removed]; removed.clear();
-    for (const p of toWrite) {
-      const f = files.get(p);
-      if (!f) continue;
-      try {
-        const dh = await dirHandle(root, parent(p), true);
-        const fh = await dh.getFileHandle(base(p), { create: true });
-        const w = await fh.createWritable();
-        await w.write(f.data);
-        await w.close();
-      } catch (e) { /* keep in memory; retry next flush */ dirty.add(p); }
-    }
+    let failed = false;
     for (const p of toRemove) {
       try {
         const dh = await dirHandle(root, parent(p), false);
         await dh.removeEntry(base(p), { recursive: true });
-      } catch (e) { /* already gone */ }
+      } catch (e) {
+        if (e.name !== "NotFoundError") {
+          if (!isFile(p) && !isDir(p)) removed.add(p);
+          failed = true;
+        }
+      }
     }
+    for (const p of toWrite) {
+      const f = files.get(p);
+      try {
+        if (f) {
+          const dh = await dirHandle(root, parent(p), true);
+          const fh = await createHandle(dh, base(p), "getFileHandle");
+          const w = await fh.createWritable();
+          await w.write(f.data);
+          await w.close();
+        } else if (isDir(p)) {
+          await dirHandle(root, p, true);
+        }
+      } catch (e) {
+        if (isFile(p) || isDir(p)) dirty.add(p);
+        failed = true;
+      }
+    }
+    if (failed) throw err("EIO");
+  }
+  function flush() {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+    const pending = writeback.then(flushChanges);
+    // A failed write is left dirty. The next flush can retry it.
+    writeback = pending.catch(() => {});
+    return pending;
   }
   function scheduleFlush() {
     if (flushTimer) return;
-    flushTimer = setTimeout(() => { flushTimer = null; flush(); }, 250);
+    flushTimer = setTimeout(() => { flush().catch(() => {}); }, 250);
   }
-  addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
-  addEventListener("pagehide", () => flush());
+  addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush().catch(() => {}); });
+  addEventListener("pagehide", () => { flush().catch(() => {}); });
 
   async function hydrate() {
     const root = await opfs();
@@ -138,6 +176,7 @@
       }
       const o = fds.get(fd);
       if (!o) throw err("EBADF");
+      if (o.mounted) throw err("EROFS");
       let f = files.get(o.path);
       if (!f) { f = { data: new Uint8Array(0), mtime: Date.now() }; files.set(o.path, f); }
       const at = o.flags & O_APPEND ? f.data.length : o.at;
@@ -154,6 +193,7 @@
     readSync(fd, buf, offset, length, position) {
       const o = fds.get(fd);
       if (!o) throw err("EBADF");
+      if (o.mounted) throw err(o.mounted.dir ? "EISDIR" : "ENOSYS");
       const f = files.get(o.path);
       if (!f) return 0;
       const at = position == null ? o.at : position;
@@ -165,6 +205,14 @@
     open(path, flags, mode, cb) {
       const p = clean(path);
       const write = (flags & WRITES) !== 0;
+      if (inMusic(p)) {
+        if (write) return cb(err("EROFS"));
+        return answer(music.entry(p), cb, mounted => {
+          const fd = nextFd++;
+          fds.set(fd, { path: p, at: 0, flags, mounted });
+          cb(null, fd);
+        });
+      }
       if (isDir(p)) {
         if (write) return cb(err("EISDIR"));
         // Reading a directory opens it too: Go asks for an fd, then fstat
@@ -190,9 +238,17 @@
     read(fd, buf, offset, length, position, cb) {
       const o = fds.get(fd);
       if (!o) return cb(err("EBADF"));
+      const at = position == null ? o.at : position;
+      if (o.mounted) {
+        if (o.mounted.dir) return cb(err("EISDIR"));
+        return answer(o.mounted.read(at, length), cb, data => {
+          buf.set(data, offset);
+          if (position == null) o.at = at + data.length;
+          cb(null, data.length);
+        });
+      }
       const f = files.get(o.path);
       if (!f) return cb(err("EISDIR"));
-      const at = position == null ? o.at : position;
       const n = Math.min(length, Math.max(f.data.length - at, 0));
       if (n > 0) buf.set(f.data.subarray(at, at + n), offset);
       if (position == null) o.at = at + n;
@@ -201,6 +257,7 @@
     write(fd, buf, offset, length, position, cb) {
       const o = fds.get(fd);
       if (!o) return cb(err("EBADF"));
+      if (o.mounted) return cb(err("EROFS"));
       const slice = buf.subarray(offset, offset + length);
       const save = o.at;
       if (position != null) o.at = position;
@@ -208,16 +265,27 @@
       if (position != null) o.at = save;
       cb(null, n);
     },
-    fsync(fd, cb) { flush(); cb(null); },
+    fsync(fd, cb) { flush().then(() => cb(null), cb); },
     fstat(fd, cb) {
       const o = fds.get(fd);
       if (!o) return cb(err("EBADF"));
-      cb(null, statOf(o.path));
+      cb(null, statOf(o.path, o.mounted));
     },
-    stat(path, cb) { const p = clean(path); (isFile(p) || isDir(p)) ? cb(null, statOf(p)) : cb(err("ENOENT")); },
+    stat(path, cb) {
+      const p = clean(path);
+      if (inMusic(p)) return answer(music.entry(p), cb, mounted => cb(null, statOf(p, mounted)));
+      return (isFile(p) || isDir(p)) ? cb(null, statOf(p)) : cb(err("ENOENT"));
+    },
     lstat(path, cb) { fs.stat(path, cb); },
     readdir(path, cb) {
       const p = clean(path);
+      if (inMusic(p)) {
+        const listing = music.entry(p).then(mounted => {
+          if (!mounted.dir) throw err("ENOTDIR");
+          return mounted.list();
+        });
+        return answer(listing, cb, names => cb(null, names.sort()));
+      }
       if (!isDir(p)) return cb(isFile(p) ? err("ENOTDIR") : err("ENOENT"));
       const names = new Set();
       for (const f of files.keys()) if (parent(f) === p) names.add(base(f));
@@ -229,6 +297,7 @@
       if (isFile(p) || isDir(p)) return cb(err("EEXIST"));
       if (!isDir(parent(p))) return cb(err("ENOENT"));
       dirs.add(p);
+      touch(p);
       cb(null);
     },
     rmdir(path, cb) {
@@ -237,6 +306,7 @@
       for (const f of files.keys()) if (parent(f) === p) return cb(err("ENOTEMPTY"));
       for (const d of dirs) if (d !== p && parent(d) === p) return cb(err("ENOTEMPTY"));
       dirs.delete(p);
+      dirty.delete(p);
       removed.add(p); scheduleFlush();
       cb(null);
     },
@@ -249,14 +319,34 @@
     },
     rename(from, to, cb) {
       const a = clean(from), b = clean(to);
+      if (a === b && (isFile(a) || isDir(a))) return cb(null);
+      if (!isDir(parent(b))) return cb(err("ENOENT"));
       const f = files.get(a);
-      if (f) { files.delete(a); files.set(b, f); dirty.delete(a); removed.add(a); touch(b); return cb(null); }
+      if (f) {
+        if (isDir(b)) return cb(err("EISDIR"));
+        files.delete(a); files.set(b, f); dirty.delete(a); removed.add(a); touch(b);
+        return cb(null);
+      }
       if (isDir(a)) {
-        const move = new Map();
-        for (const [p, v] of files) if (p === a || p.startsWith(a + "/")) move.set(p, v);
-        for (const p of move.keys()) { files.delete(p); files.set(b + p.slice(a.length), move.get(p)); removed.add(p); }
-        for (const d of [...dirs]) if (d === a || d.startsWith(a + "/")) { dirs.delete(d); dirs.add(b + d.slice(a.length)); }
-        touch(b); scheduleFlush();
+        if (b.startsWith(a + "/")) return cb(err("EINVAL"));
+        if (isFile(b)) return cb(err("ENOTDIR"));
+        if (isDir(b) && ([...dirs, ...files.keys()].some(p => p.startsWith(b + "/")))) {
+          return cb(err("ENOTEMPTY"));
+        }
+        // A directory move must persist every child at its new path. This is
+        // how a staged plugin becomes an installed plugin.
+        for (const [p, data] of [...files]) {
+          if (!p.startsWith(a + "/")) continue;
+          const dest = b + p.slice(a.length);
+          files.delete(p); dirty.delete(p); removed.add(p);
+          files.set(dest, data); touch(dest);
+        }
+        for (const p of [...dirs]) {
+          if (p !== a && !p.startsWith(a + "/")) continue;
+          const dest = b + p.slice(a.length);
+          dirs.delete(p); dirty.delete(p); removed.add(p);
+          dirs.add(dest); touch(dest);
+        }
         return cb(null);
       }
       cb(err("ENOENT"));

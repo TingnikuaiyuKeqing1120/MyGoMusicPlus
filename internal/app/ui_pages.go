@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -98,22 +99,36 @@ func (a *app) homePage(c *ui.Context) {
 
 // pickFolders asks the listener for folders with a native dialog, on a
 // goroutine, for it blocks; tests replace it.
-var pickFolders = func(a *app, got func([]string)) {
+var pickFolders = func(a *app, got func([]string, error)) {
 	go func() {
-		paths, err := mygoOpenFolders(a)
-		if err == nil && len(paths) > 0 {
-			a.post(func() { got(paths) })
-		}
+		paths, err := chooseMusicFolders()
+		a.post(func() { got(paths, err) })
 	}()
 }
 
 // addMusicFolder asks for folders of music and starts looking through them.
 func (a *app) addMusicFolder() {
-	pickFolders(a, func(paths []string) {
-		if a.local != nil {
+	if a.folderPicking {
+		return
+	}
+	a.folderPicking, a.folderErr = true, ""
+	pickFolders(a, func(paths []string, err error) {
+		a.folderPicking = false
+		if err != nil {
+			a.folderErr = Tf("Couldn't choose a music folder: %s", err.Error())
+			return
+		}
+		if a.local != nil && len(paths) > 0 {
 			a.local.AddFolders(paths...)
 		}
 	})
+}
+
+func musicFolderName(dir string) string {
+	if onWeb && strings.HasPrefix(dir, "/music-folders/") {
+		return filepath.Base(dir)
+	}
+	return dir
 }
 
 // emptyHome invites the listener to do what gets the source going.
@@ -140,8 +155,12 @@ func (a *app) emptyHome(c *ui.Context) {
 			}
 			ui.Text(c, title).FontSize(22).FontWeight(700).LetterSpacing(-0.3)
 			ui.Text(c, sub).FontSize(13.5).TextColor(p.muted).TextAlign(ui.Center).MaxWidth(420).LineHeight(1.45)
-			if pillButton(c.Key("add-folder"), iconPlus, T("Add a Music Folder"), p.accent, p.onAccent).Margin(10, 0, 0, 0).Clicked() {
+			if pillButton(c.Key("add-folder"), iconPlus, T("Add a Music Folder"), p.accent, p.onAccent).
+				Disabled(a.folderPicking).Margin(10, 0, 0, 0).Clicked() {
 				a.addMusicFolder()
+			}
+			if a.folderErr != "" {
+				ui.Text(c, a.folderErr).FontSize(12).TextColor(p.accent).TextAlign(ui.Center).MaxWidth(420).LineHeight(1.4)
 			}
 		case lib.signedOut():
 			ui.Text(c, Tf("Sign in to %s", lib.name())).FontSize(22).FontWeight(700).LetterSpacing(-0.3)
