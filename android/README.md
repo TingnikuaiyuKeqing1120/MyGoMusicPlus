@@ -19,8 +19,8 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
   通知/锁屏/耳机键经 `WebLink` 调 web 的 mediaSession handlers；焦点丢失自动暂停。
 - `Bridge`：web media-bridge → 原生（元数据/播放态/进度/分享/外链）；GitHub OAuth
   设备流的两步请求（`githubDeviceStart`/`githubDevicePoll`，GitHub 登录端点不对浏览器
-  fetch 开放 CORS，由壳代发，结果经 `__mygoDeviceResult` 回传）；`installApk` 下载更新
-  并经 FileProvider 交给系统安装器（进度经 `__mygoInstallState` 回传）。
+  fetch 开放 CORS，由壳代发，结果经 `__mygoDeviceResult` 回传）；`ApkUpdates` 下载并保存
+  更新包，经 FileProvider 交给系统安装器。`__mygoInstallState` 回传进度和已下载版本。
 - `WebLink`：原生 → web 的反向控制缝（媒体控制 / 设备流应答 / 安装进度）。
 
 ## 构建步骤
@@ -51,8 +51,9 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
   令牌可经 OAuth 设备流获取（设置 → 同步 → 通过 GitHub 登录，显示设备码，
   授权后自动填入；OAuth App client ID 见 `internal/app/oauth.go`）。
 - App 自动更新（设置 → 更新）：每天检查 `TingnikuaiyuKeqing1120/MyGoMusicPlus`
-  的 releases，发现新版可下载 APK 交系统安装器（需允许安装未知应用）；
-  纯浏览器中打开 release 页面。
+  的 releases。Android 可选择 GitHub 官方源或 GH-Proxy 国内镜像下载 APK，版本和校验值均从 GitHub 获取。
+  下载完成后 APK 保存在应用文件目录，取消安装或重开应用后可在更新页点「安装已下载的版本」。
+  升级后会清理已不适用的安装包。纯浏览器中打开 release 页面。
 - 安装后，启用的音源可从手机首页顶部切换。设置页用返回箭头逐级返回。
 - 本地音乐可从首页或设置 → 插件 → 本地文件添加。Android 使用系统目录选择器并保留
   只读授权，扫描和播放时按需读取。支持 File System Access 的浏览器可以选择目录，

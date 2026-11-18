@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 )
 
 // Checking the app's releases keeps a newer one to offer, and nothing when
@@ -22,7 +23,7 @@ func TestAppUpdateCheck(t *testing.T) {
 	}
 	a.checkAppUpdate()
 	runPost(t, ch)
-	if u := &a.appUpd; u.version != "v0.3.0" || u.apk != "https://example.com/app.apk" {
+	if u := a.appUpd.release; u == nil || u.Tag != "v0.3.0" || u.APK != "https://example.com/app.apk" {
 		t.Fatalf("the newer release shows %+v", u)
 	}
 	fetchAppRelease = func() (*appRelease, error) {
@@ -30,23 +31,51 @@ func TestAppUpdateCheck(t *testing.T) {
 	}
 	a.checkAppUpdate()
 	runPost(t, ch)
-	if u := &a.appUpd; u.version != "" || u.apk != "" {
+	if u := a.appUpd.release; u != nil {
 		t.Fatalf("the current version offers %+v", u)
 	}
 }
 
-// The update goes to the shell's installer, the download showing while it's
-// on its way.
+// The shell gets the chosen route and the release's APK metadata.
 func TestAppUpdateInstall(t *testing.T) {
+	was := downloadApk
+	defer func() { downloadApk = was }()
+	for _, mirror := range []bool{false, true} {
+		a := newTestApp()
+		a.settings.UpdateMirror = mirror
+		rel := appRelease{Tag: "v0.3.0", APK: "https://example.com/app.apk", Digest: "sha256:abc", Size: 120}
+		var got appRelease
+		var usingMirror bool
+		downloadApk = func(r appRelease, m bool) { got, usingMirror = r, m }
+		a.appUpd.release = &rel
+		a.installAppUpdate()
+		if got != rel || usingMirror != mirror || !a.appUpd.downloading() {
+			t.Fatalf("handed %+v, mirror %v, state %q", got, usingMirror, a.appUpd.install)
+		}
+	}
+}
+
+// A cold start used to lose the install button until it checked and downloaded again.
+func TestInstallDownloadedUpdateAfterRestart(t *testing.T) {
 	a := newTestApp()
-	was := installApk
-	defer func() { installApk = was }()
-	var got string
-	installApk = func(url string) { got = url }
-	a.appUpd.apk = "https://example.com/app.apk"
-	a.installAppUpdate()
-	if got != "https://example.com/app.apk" || a.appUpd.install != "downloading" {
-		t.Fatalf("handed %q, state %q", got, a.appUpd.install)
+	a.settingsWeb, a.settingsPage = true, "updates"
+	wasWeb, wasDownload, wasReopen := onWeb, downloadApk, reopenApkInstaller
+	onWeb = true
+	defer func() { onWeb, downloadApk, reopenApkInstaller = wasWeb, wasDownload, wasReopen }()
+	downloadApk = func(appRelease, bool) { t.Error("installing a saved APK started a download") }
+	opened := 0
+	reopenApkInstaller = func() { opened++ }
+	a.appUpd.restoreInstallState(`{"state":"","ready":"v0.3.0"}`)
+	tt := ui.NewTester(a.view, 390, 780)
+	tt.Frame()
+	for range 2 { // The installer can be cancelled and reopened again.
+		if err := tt.Click("Install Downloaded Update"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	if opened != 2 || a.appUpd.release != nil {
+		t.Fatalf("reopened %d times, release check produced %v", opened, a.appUpd.release)
 	}
 }
 

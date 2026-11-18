@@ -32,6 +32,8 @@ type settings struct {
 	// AppChecked is when the app's own releases were last looked at, once a
 	// day, on the web.
 	AppChecked time.Time `json:"appChecked,omitzero"`
+	// UpdateMirror uses the mirror for Android APK downloads.
+	UpdateMirror bool `json:"updateMirror,omitempty"`
 	// Notch shows the quick player around the notch: the listener turns
 	// it on.
 	Notch bool `json:"notch"`

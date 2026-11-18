@@ -378,7 +378,13 @@ func (a *app) settingsGroup(c *ui.Context, p palette, sec settingsSection, title
 			if !all && !settingsMatch(query, label, desc) {
 				return
 			}
-			ui.Row(c).Padding(12, 16).Gap(16).AlignItems(ui.Center).MinHeight(48).Children(func() {
+			var layout ui.Element
+			if sec.id == "updates" && narrow(c) {
+				layout = ui.Column(c).Gap(8).AlignItems(ui.Start)
+			} else {
+				layout = ui.Row(c).Gap(16).AlignItems(ui.Center)
+			}
+			layout.Padding(12, 16).MinHeight(48).Children(func() {
 				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
 					ui.Text(c, label).FontSize(13.5).FontWeight(500)
 					if desc != "" {
@@ -612,39 +618,50 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 			if u.err != "" {
 				ui.Text(c, u.err).FontSize(12).TextColor(p.accent).LineHeight(1.4)
 			}
-			if u.version != "" {
-				row(Tf("New Version %s", u.version), T("Download the new version and hand it to the system installer"), func() {
-					switch {
-					case strings.HasPrefix(u.install, "downloading"):
-						frac, known := u.downloadProgress()
-						label := T("Downloading the update…")
-						if known {
-							label = Tf("Downloading the update… %d%%", int(frac*100))
+			if downloadApk != nil {
+				row(T("APK Download Source"), "", func() {
+					at := 0
+					if s.UpdateMirror {
+						at = 1
+					}
+					if i, ok := choice(c, "apk-download-source", T("APK Download Source"), []string{N("GitHub Official"), N("GH-Proxy Mirror")}, at); ok {
+						s.UpdateMirror = i == 1
+						s.save()
+					}
+				})
+			}
+			if u.ready != "" && reopenApkInstaller != nil {
+				row(Tf("Downloaded Version %s", u.ready), T("The saved APK can be installed offline"), func() {
+					if ui.Button(c.Key("install-downloaded-update"), T("Install Downloaded Update")).Disabled(u.downloading()).Clicked() {
+						a.installDownloadedUpdate()
+					}
+				})
+			}
+			if message, ok := strings.CutPrefix(u.install, "failed: "); ok {
+				ui.Text(c, Tf("Update failed. %s", message)).FontSize(12).TextColor(p.accent).LineHeight(1.4)
+			}
+			if u.downloading() {
+				frac, known := u.downloadProgress()
+				label := T("Downloading the update…")
+				if known {
+					label = Tf("Downloading the update… %d%%", int(frac*100+0.5))
+				}
+				row(label, "", func() {
+					ui.Box(c).Width(140).Height(4).Radius(2).Draw(func(pt *ui.Painter, r ui.Rect) {
+						pt.Fill(r, p.hover.Over(p.bg), 2)
+						if frac > 0 {
+							pt.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W * frac, H: r.H}, p.accent, 2)
 						}
-						ui.Column(c).Gap(5).Children(func() {
-							ui.Text(c, label).FontSize(12).TextColor(p.muted)
-							ui.Box(c).Width(160).Height(4).Radius(2).Draw(func(pt *ui.Painter, r ui.Rect) {
-								pt.Fill(r, p.hover.Over(p.bg), 2)
-								if frac > 0 {
-									pt.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W * min(frac, 1), H: r.H}, p.accent, 2)
-								}
-							})
-						})
-					case u.install == "installing":
-						ui.Text(c, T("The system installer has the update")).FontSize(13).TextColor(p.muted)
-						if ui.Button(c.Key("install-app-retry"), T("Try Again")).Clicked() {
-							u.install = ""
-							a.installAppUpdate()
-						}
-					case strings.HasPrefix(u.install, "failed"):
-						ui.Text(c, u.install).FontSize(12).TextColor(p.accent).LineHeight(1.4)
-						if ui.Button(c.Key("install-app-retry"), T("Try Again")).Clicked() {
-							a.installAppUpdate()
-						}
-					default:
-						if ui.Button(c.Key("install-app-update"), T("Download and Install")).Clicked() {
-							a.installAppUpdate()
-						}
+					})
+				})
+			} else if rel := u.release; rel != nil && !u.hasAPK(rel.Tag) {
+				row(Tf("New Version %s", rel.Tag), "", func() {
+					label := T("Open Release")
+					if downloadApk != nil && rel.APK != "" {
+						label = T("Download and Install")
+					}
+					if ui.Button(c.Key("install-app-update"), label).Clicked() {
+						a.installAppUpdate()
 					}
 				})
 			}

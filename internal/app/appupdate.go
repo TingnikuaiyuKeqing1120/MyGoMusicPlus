@@ -24,18 +24,19 @@ const appCheckEvery = 24 * time.Hour
 // appUpdate is what checking for a new version of the app came to.
 type appUpdate struct {
 	checking bool
-	version  string // the newest release's tag, while it's newer than this
-	apk      string // the release's APK, for the shell to install
-	page     string // the release's page, for a browser to open
+	release  *appRelease
 	err      string
-	install  string // "", "downloading", "installing", or "failed: …"
+	install  string // "", "downloading", "downloading:NN", or "failed: …"
+	ready    string // the version of an APK saved by the shell
 }
 
 // appRelease is what the app's repository offers now.
 type appRelease struct {
-	Tag  string
-	APK  string
-	Page string
+	Tag    string
+	APK    string
+	Page   string
+	Digest string
+	Size   int64
 }
 
 // fetchAppRelease asks GitHub what the latest release is; tests replace it.
@@ -53,8 +54,10 @@ var fetchAppRelease = func() (*appRelease, error) {
 		Tag    string `json:"tag_name"`
 		Page   string `json:"html_url"`
 		Assets []struct {
-			Name string `json:"name"`
-			URL  string `json:"browser_download_url"`
+			Name   string `json:"name"`
+			URL    string `json:"browser_download_url"`
+			Digest string `json:"digest"`
+			Size   int64  `json:"size"`
 		} `json:"assets"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&rel); err != nil {
@@ -63,16 +66,17 @@ var fetchAppRelease = func() (*appRelease, error) {
 	r := &appRelease{Tag: rel.Tag, Page: rel.Page}
 	for _, as := range rel.Assets {
 		if strings.HasSuffix(strings.ToLower(as.Name), ".apk") {
-			r.APK = as.URL
+			r.APK, r.Digest, r.Size = as.URL, as.Digest, as.Size
 			break
 		}
 	}
 	return r, nil
 }
 
-// installApk hands the APK to the shell's system installer; nil where no
-// shell offers it, the release's page opening instead. Tests replace it.
-var installApk func(url string)
+// downloadApk and reopenApkInstaller are supplied by the Android shell. A
+// browser opens the release page instead.
+var downloadApk func(appRelease, bool)
+var reopenApkInstaller func()
 
 // keepCheckingAppUpdate looks at the app's releases now if it's time, and
 // from then on as the day comes round, for as long as the app runs.
@@ -108,27 +112,62 @@ func (a *app) checkAppUpdate() {
 				return
 			}
 			if plugin.IsNewer(rel.Tag, mygo.App.Version()) {
-				if u.version == "" {
+				if u.release == nil && !u.hasAPK(rel.Tag) {
 					a.toast = Tf("New version %s is out", rel.Tag)
 				}
-				u.version, u.apk, u.page = rel.Tag, rel.APK, rel.Page
+				u.release = rel
 			} else {
-				u.version, u.apk, u.page = "", "", ""
+				u.release = nil
 			}
 		})
 	}()
 }
 
-// installAppUpdate takes the new version in: the shell's system installer
-// where there's one, the release's page in a browser otherwise.
+// installAppUpdate reuses a saved copy of this release before asking the
+// shell to download it. In a browser, it opens the release page.
 func (a *app) installAppUpdate() {
 	u := &a.appUpd
-	if u.apk != "" && installApk != nil {
-		u.install = "downloading"
-		installApk(u.apk)
+	if u.release == nil || u.downloading() {
 		return
 	}
-	mygo.Shell.OpenExternal(u.page)
+	if u.hasAPK(u.release.Tag) && reopenApkInstaller != nil {
+		a.installDownloadedUpdate()
+		return
+	}
+	if u.release.APK != "" && downloadApk != nil {
+		u.install = "downloading"
+		downloadApk(*u.release, a.settings.UpdateMirror)
+		return
+	}
+	mygo.Shell.OpenExternal(u.release.Page)
+}
+
+func (a *app) installDownloadedUpdate() {
+	u := &a.appUpd
+	if u.ready != "" && !u.downloading() && reopenApkInstaller != nil {
+		u.install = ""
+		reopenApkInstaller()
+	}
+}
+
+func (u *appUpdate) hasAPK(tag string) bool {
+	return u.ready != "" && strings.TrimPrefix(u.ready, "v") == strings.TrimPrefix(tag, "v")
+}
+
+func (u *appUpdate) downloading() bool {
+	return u.install == "downloading" || strings.HasPrefix(u.install, "downloading:")
+}
+
+// restoreInstallState also works before a release check has finished. The
+// Android shell reads the downloaded version from its saved APK.
+func (u *appUpdate) restoreInstallState(data string) {
+	var state struct {
+		State string `json:"state"`
+		Ready string `json:"ready"`
+	}
+	if json.Unmarshal([]byte(data), &state) == nil {
+		u.install, u.ready = state.State, state.Ready
+	}
 }
 
 // downloadProgress is how far the update's download has come, and whether
@@ -142,5 +181,5 @@ func (u *appUpdate) downloadProgress() (frac float32, known bool) {
 	if err != nil {
 		return 0, false
 	}
-	return float32(min(n, 100)) / 100, true
+	return float32(min(max(n, 0), 100)) / 100, true
 }

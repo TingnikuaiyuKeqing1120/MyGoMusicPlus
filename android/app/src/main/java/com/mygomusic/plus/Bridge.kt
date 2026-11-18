@@ -94,50 +94,13 @@ class Bridge(private val ctx: Context, private val chooseMusicFolder: () -> Unit
         }.start()
     }
 
-    // installApk downloads the update and hands it to the system installer,
-    // saying how it goes through WebLink.install, the download's percent as
-    // it comes so the wait shows its progress.
     @JavascriptInterface
-    fun installApk(url: String) {
-        Thread {
-            try {
-                WebLink.install?.invoke("downloading")
-                val f = java.io.File(ctx.cacheDir, "update.apk")
-                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 30000
-                conn.readTimeout = 60000
-                val total = conn.contentLengthLong
-                var done = 0L
-                var lastPct = -1
-                conn.inputStream.use { input ->
-                    f.outputStream().use { out ->
-                        val buf = ByteArray(64 * 1024)
-                        while (true) {
-                            val n = input.read(buf)
-                            if (n < 0) break
-                            out.write(buf, 0, n)
-                            done += n
-                            if (total > 0) {
-                                val pct = (done * 100 / total).toInt()
-                                if (pct != lastPct) {
-                                    lastPct = pct
-                                    WebLink.install?.invoke("downloading:$pct")
-                                }
-                            }
-                        }
-                    }
-                }
-                val uri = androidx.core.content.FileProvider.getUriForFile(
-                    ctx, ctx.packageName + ".fileprovider", f)
-                val i = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, "application/vnd.android.package-archive")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                ctx.startActivity(i)
-                WebLink.install?.invoke("installing")
-            } catch (e: Exception) {
-                WebLink.install?.invoke("failed: " + (e.message ?: e.javaClass.simpleName))
-            }
-        }.start()
-    }
+    fun downloadUpdateApk(tag: String, url: String, digest: String, size: Long, mirror: Boolean) =
+        ApkUpdates.download(ctx, tag, url, digest, size, mirror)
+
+    @JavascriptInterface
+    fun openUpdateInstaller() = ApkUpdates.reopen(ctx)
+
+    @JavascriptInterface
+    fun updateApkState(): String = ApkUpdates.restore(ctx)
 }

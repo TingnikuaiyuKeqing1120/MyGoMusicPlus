@@ -9,16 +9,20 @@ import "syscall/js"
 // __mygoInstallState.
 func useAppInstall(a *app) {
 	bridge := js.Global().Get("AndroidBridge")
-	if !bridge.Truthy() || bridge.Get("installApk").Type() != js.TypeFunction {
+	if !bridge.Truthy() || bridge.Get("downloadUpdateApk").Type() != js.TypeFunction {
 		return
 	}
-	installApk = func(url string) { bridge.Call("installApk", url) }
+	downloadApk = func(rel appRelease, mirror bool) {
+		bridge.Call("downloadUpdateApk", rel.Tag, rel.APK, rel.Digest, rel.Size, mirror)
+	}
+	reopenApkInstaller = func() { bridge.Call("openUpdateInstaller") }
 	js.Global().Set("__mygoInstallState", js.FuncOf(func(this js.Value, args []js.Value) any {
 		if len(args) < 1 {
 			return nil
 		}
 		state := args[0].String()
-		a.post(func() { a.appUpd.install = state })
+		a.post(func() { a.appUpd.restoreInstallState(state) })
 		return nil
 	}))
+	a.appUpd.restoreInstallState(bridge.Call("updateApkState").String())
 }
