@@ -2,15 +2,15 @@
 
 MyGo Music Plus plays local music and plugin sources. The Windows player has a native Go UI built with MyGo. Android runs the same player as WebAssembly in a Kotlin WebView shell. The Web player can also be built for a browser. [MyGo framework](https://github.com/egoist/mygo)
 
-Plus releases include a Windows x64 installer and an Android APK. On Windows, run the new installer to upgrade. On Android, Settings → Updates checks for a release and opens the system installer. [Download MyGo Music Plus](https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/releases/latest)
+The published v0.2.3 release includes a Windows x64 installer and an Android APK. Its Windows installer upgrades earlier Plus installations. Android checks for releases under Settings → Updates and opens the system installer. [Download MyGo Music Plus](https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/releases/latest)
 
-### Import your Windows library from MyGo Music
+### Desktop features for the next release
 
-Quit **MyGo Music** and **MyGo Music Plus** from their tray menus, then double-click **Import to MyGo Music Plus.cmd** and type `IMPORT` to confirm. The tool works with an existing Windows Plus installation. In a source checkout, it is in [resources/windows](resources/windows). Run `import-profile.ps1` without arguments for a read-only preview.
+The desktop build targets Windows x64, macOS Intel and Apple Silicon, and Linux x64 and ARM64. Writable per-user installations check the Plus release channel for signed updates. Settings → Updates controls background checks and automatic installation. Linux system packages use their package manager. Windows v0.2.3 users will need to install the first update-enabled release manually.
 
-The import reads `%APPDATA%\MyGo Music` and writes to `%APPDATA%\MyGo Music Plus`. It copies the local library and music folder paths, playback session, window state, downloaded speech models, plugins and their private data (including GD Music playlists, stored sign-ins and permission grants). Audio files stay in their original folders. Upstream preferences take precedence for shared settings. Plus-specific settings and plugins installed only in Plus are kept. A source library or matching plugin replaces its Plus counterpart.
+To import your library, quit **MyGo Music**, then open **Settings → Sync → Import from Original** in Plus. Confirm **Import and Restart**. Plus exits normally and imports before opening the new session. It copies the local library and folder paths, playback session, preferences, window state, downloaded speech models, plugins and their stored data (including playlists, sign-ins and permission grants). Original preferences, the original library and matching plugins take precedence. Plus-only settings and plugins stay in place. The Dev build imports into its own test profile.
 
-The tool prints the backup path for the complete previous Plus profile. To undo the import, quit Plus, move its current profile aside, and copy the backup's `before` directory back as `%APPDATA%\MyGo Music Plus`. Windows Plus Dev keeps its own test profile. Subsequent edits in each player stay local unless you enable Plus's GitHub sync.
+The result dialog gives the backup path. Profiles are under `%APPDATA%` on Windows, `~/Library/Application Support/` on macOS, and `$XDG_CONFIG_HOME/` (usually `~/.config/`) on Linux. To undo an import, quit Plus, move its profile aside and copy the backup's `before` directory back under the original Plus profile name. For Windows installations predating the settings button, quit both players and run the [standalone migration tool](resources/windows).
 
 ## Features
 

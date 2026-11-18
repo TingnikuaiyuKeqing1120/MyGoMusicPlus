@@ -25,7 +25,11 @@ export default ({ command }: { command: string }) => {
       publicKey: "WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ=",
       github: "egoist/mygo-music",
     },
-    macos: plusDesktop ? undefined : {
+    macos: plusDesktop ? {
+      minimumSystemVersion: "13.0",
+      signingIdentity: process.env.MYGO_PLUS_MAC_SIGN_IDENTITY,
+      notarize: process.env.MYGO_PLUS_NOTARY_PROFILE ? { keychainProfile: process.env.MYGO_PLUS_NOTARY_PROFILE } : undefined,
+    } : {
       icon: "icon/AppIcon.icon",
       minimumSystemVersion: "13.0",
       signingIdentity: "Developer ID Application: xinyu zeng (GJE9R5VE87)",

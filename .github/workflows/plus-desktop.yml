@@ -15,7 +15,7 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, target: windows-amd64, platform: windows/amd64 }
-          - { os: macos-15, target: darwin-arm64, platform: darwin/arm64 }
+          - { os: macos-latest, target: darwin-arm64, platform: darwin/arm64 }
           - { os: macos-15-intel, target: darwin-amd64, platform: darwin/amd64 }
           - { os: ubuntu-24.04, target: linux-amd64, platform: linux/amd64 }
           - { os: ubuntu-24.04-arm, target: linux-arm64, platform: linux/arm64 }
@@ -56,6 +56,8 @@ jobs:
           go tool mygo build -platform "$PLATFORM"
       - name: Verify the signed update archive
         run: node scripts/release/check-desktop.mjs "build/$TARGET" "$TARGET"
+      - name: Install the signed update in a disposable player directory
+        run: node scripts/release/test-desktop-update.mjs "build/$TARGET" "$TARGET"
       - uses: actions/upload-artifact@v4
         with:
           name: plus-${{ matrix.target }}

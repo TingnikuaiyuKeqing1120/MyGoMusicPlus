@@ -356,6 +356,21 @@ func Run() error {
 	if !mygo.App.RequestSingleInstanceLock() {
 		return nil
 	}
+	var importBackup string
+	var importErr error
+	if profiles, ok := importProfiles(); ok {
+		// Recover before PathUserData can create an empty directory in the
+		// middle of an interrupted swap. No settings or plugin hosts are open.
+		if err := profiles.Recover(); err != nil {
+			return importRecoveryError(err)
+		}
+		importBackup, importErr = profiles.ApplyRequested()
+		if importErr != nil {
+			if err := profiles.Recover(); err != nil {
+				return importRecoveryError(err)
+			}
+		}
+	}
 	a := &app{
 		signInOver:  new(atomic.Pointer[mygo.Window]),
 		settingText: map[string]*string{},
@@ -410,6 +425,11 @@ func Run() error {
 		})
 		a.setMenu()
 		a.boot()
+		if importErr != nil {
+			showImportMessage(a.win, T("Import failed"), importErr.Error(), mygo.MessageError)
+		} else if importBackup != "" {
+			showImportMessage(a.win, T("Import complete"), Tf("Previous profile saved in %s", importBackup), mygo.MessageInfo)
+		}
 		// The notch player is macOS's, over its menu bar: elsewhere it would
 		// hang at the top of the screen as a black box.
 		if runtime.GOOS == "darwin" {

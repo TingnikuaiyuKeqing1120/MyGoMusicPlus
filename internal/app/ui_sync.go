@@ -13,6 +13,7 @@ import (
 // syncSettings is the Sync page: the token and repository, which kinds sync,
 // and a button to sync now. The token stays on this device, never synced.
 func (a *app) syncSettings(c *ui.Context, row settingsRow, p palette) {
+	a.importSettings(c, row)
 	s := &a.syncer
 	if deviceStart != nil {
 		a.deviceSignIn(c, row, p)

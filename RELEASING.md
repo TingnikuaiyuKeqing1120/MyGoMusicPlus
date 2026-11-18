@@ -2,12 +2,16 @@
 
 ## MyGo Music Plus
 
-The Plus fork publishes a Windows x64 installer and an Android APK from the same tag.
+Use one tag for Plus desktop packages, signed update manifests and the Android APK. The Android build and APK signing key follow the existing procedure.
 
 1. Set the version in `mygo.config.ts` and in `android/app/build.gradle.kts`. Increment Android's `versionCode` and add the release to `CHANGELOG.md`.
-2. Run the tests and build the Windows Plus package following [the build instructions](README.md#build). Build the APK following [the Android build instructions](android/README.md#构建步骤). Use the same APK signing key as the previous Plus release so installed copies can upgrade.
-3. Commit and push `main` and the new version tag to the Plus fork. Create a draft GitHub Release from the tag and upload the Windows setup executable and the Android APK.
-4. Check both downloads and publish the release. Android checks the Plus release page for APK updates. Windows users run the new setup executable to upgrade.
+2. Run the tests and build the APK following the [Android build instructions](android/README.md#构建步骤). Sign with the same key as the previous Android release.
+3. Push the release commit and matching tag to the Plus fork. The [desktop workflow](.github/workflows/plus-desktop.yml) builds Windows x64, macOS Intel/Apple Silicon and Linux x64/ARM64 on native runners. It checks each update manifest and signature and exercises installation in a temporary profile-free directory. A test-branch build generates disposable keys and is only for verification.
+4. Download the five **tag run** artifacts. Create a draft release for that tag. Upload the installers/packages, every `update-<target>.json`, each corresponding `.tar.gz`, the install scripts and the APK. Keep all filenames from the build. Check shared install scripts for identical content before uploading one copy. Compare downloaded assets against the build digests, then publish as Latest. The current Plus update configuration uses signed full archives.
+
+Tagged builds read `MYGO_UPDATER_PRIVATE_KEY` from the Plus repository secret. The matching public key is in [plus-update.pub](scripts/release/plus-update.pub). The local recovery copy, where provisioned, is `%LOCALAPPDATA%\MyGo Music Plus Signing\update-key.dpapi`, encrypted for the Windows user that created it.
+
+The macOS verification packages use ad-hoc signing. For a Gatekeeper-notarized distribution, build on a Mac with a Developer ID Application identity and an Xcode notary keychain profile. Set `MYGO_PLUS_MAC_SIGN_IDENTITY` and `MYGO_PLUS_NOTARY_PROFILE` along with the Plus updater key and `MYGO_PLUS_DESKTOP=1`. Upload the DMG, update archive and manifest from that same signed build together.
 
 ## Upstream MyGo Music
 
