@@ -15,7 +15,9 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, target: windows-amd64, platform: windows/amd64 }
-          - { os: macos-latest, target: darwin-arm64, platform: darwin/arm64 }
+          # Both macOS runners have Apple's arm64 SDK. The Intel host also
+          # works when native Apple Silicon runners are at capacity.
+          - { os: macos-15-intel, target: darwin-arm64, platform: darwin/arm64 }
           - { os: macos-15-intel, target: darwin-amd64, platform: darwin/amd64 }
           - { os: ubuntu-24.04, target: linux-amd64, platform: linux/amd64 }
           - { os: ubuntu-24.04-arm, target: linux-arm64, platform: linux/arm64 }
@@ -56,6 +58,14 @@ jobs:
           go tool mygo build -platform "$PLATFORM"
       - name: Verify the signed update archive
         run: node scripts/release/check-desktop.mjs "build/$TARGET" "$TARGET"
+      - name: Verify the Mach-O architecture and bundle signature
+        if: runner.os == 'macOS'
+        run: |
+          app="build/$TARGET/MyGo Music Plus.app"
+          arch=arm64
+          if [[ "$TARGET" == darwin-amd64 ]]; then arch=x86_64; fi
+          lipo -verify_arch "$arch" "$app/Contents/MacOS/MyGo Music Plus"
+          codesign --verify --deep --strict "$app"
       - name: Install the signed update in a disposable player directory
         run: node scripts/release/test-desktop-update.mjs "build/$TARGET" "$TARGET"
       - uses: actions/upload-artifact@v4

@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 type Profiles struct {
@@ -118,7 +120,7 @@ func (p Profiles) ApplyRequested() (string, error) {
 		return "", err
 	}
 	stage := filepath.Join(job, "prepared")
-	if err := p.prepare(stage); err != nil {
+	if err := p.stageConsistentProfile(stage); err != nil {
 		_ = os.RemoveAll(job) // private directory created above, before any rename
 		return "", err
 	}
@@ -138,6 +140,68 @@ func (p Profiles) ApplyRequested() (string, error) {
 		return "", err
 	}
 	return before, os.Remove(marker)
+}
+
+// The upstream app owns its own lock, and can reopen during the copy. Check
+// membership and timestamps again to catch edits to files already staged.
+func (p Profiles) stageConsistentProfile(stage string) error {
+	before, err := sourceState(p.Source)
+	if err != nil {
+		return err
+	}
+	if err := p.prepare(stage); err != nil {
+		return err
+	}
+	after, err := sourceState(p.Source)
+	if err != nil {
+		return err
+	}
+	if !maps.Equal(before, after) {
+		for name, previous := range before {
+			if current, ok := after[name]; !ok || current != previous {
+				return fmt.Errorf("original profile changed at %s; quit the original player and try again", name)
+			}
+		}
+		return errors.New("files were added to the original profile during import; quit the original player and try again")
+	}
+	return nil
+}
+
+type stamp struct {
+	size     int64
+	mode     fs.FileMode
+	modified time.Time
+}
+
+func sourceState(source string) (map[string]stamp, error) {
+	state := map[string]stamp{}
+	for _, name := range items {
+		base := filepath.Join(source, name)
+		err := filepath.WalkDir(base, func(path string, entry fs.DirEntry, err error) error {
+			if path == base && errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				// Directory listing timestamps may lag on Windows. The map
+				// already tracks membership, including empty directories.
+				state[path] = stamp{mode: fs.ModeDir}
+				return nil
+			}
+			info, err := os.Lstat(path)
+			if err != nil {
+				return err
+			}
+			state[path] = stamp{info.Size(), info.Mode(), info.ModTime()}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return state, nil
 }
 
 func (p Profiles) prepare(stage string) error {
