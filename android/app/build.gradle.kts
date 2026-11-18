@@ -13,8 +13,8 @@ android {
         targetSdk = 35
         // Rise with each release, together with the version in mygo.config.ts:
         // the system installer refuses a code below the installed one.
-        versionCode = 3
-        versionName = "0.2.2"
+        versionCode = 4
+        versionName = "0.2.3"
     }
 
     buildTypes {

@@ -2,6 +2,17 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.3] - 2026-11-18
+
+### Changed
+
+- A pixel cat holding an umbrella is the new Windows app, tray and Android launcher icon for MyGo Music Plus.
+- On Android, choose GitHub or the GH-Proxy mirror to download an update. A completed download stays available in Settings so you can retry installation offline, even after restarting the app.
+
+### Fixed
+
+- GitHub sign-in controls fit narrow screens. On Android, open the device authorization page in GitHub Mobile or choose a browser, then return to the app to finish signing in.
+
 ## [0.2.2] - 2026-11-18
 
 ### Added
@@ -261,6 +272,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.2.3]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.1...v0.2.2
 [0.1.25]: https://github.com/egoist/mygo-music/compare/v0.1.24...v0.1.25
 [0.1.24]: https://github.com/egoist/mygo-music/compare/v0.1.23...v0.1.24

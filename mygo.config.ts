@@ -8,7 +8,7 @@ export default ({ command }: { command: string }) => {
     identifier: plusDesktop ? "com.mygomusic.plus" : "dev.egoist.music",
     slug: plusDesktop ? "mygo-music-plus" : "mygo-music",
     icon: plusDesktop ? "resources/plus-rain-cat.png" : undefined,
-    version: "0.2.2",
+    version: "0.2.3",
     out: "build",
     urlSchemes: [plusDesktop ? "mygo-music-plus" : command === "dev" ? "mygo-music-dev" : "mygo-music"],
     updates: plusDesktop ? undefined : {
