@@ -30,7 +30,18 @@ The result dialog gives the backup path. Profiles are under `%APPDATA%` on Windo
 - Install GD Music from Settings → Plugins. Plus fetches the plugin from GitHub and offers its bundled copy if the fetch fails.
 - Select multiple tracks to add, remove or download where the source supports it. Drag rows to reorder an editable playlist or drop them on a sidebar playlist.
 - Queue downloads at a chosen quality. Pause and resume within the session. A server that supports HTTP Range can continue from the saved bytes. The Downloaded page keeps completed tracks for local playback and deletion. Desktop users can also reveal the saved file.
-- Sync preferences, the built-in local source's playlists and likes, and installed plugins through a GitHub repository. Each category has its own switch. Use GitHub device sign-in on desktop or Android, or enter a token in a browser. Plus creates new sync repositories as private. If you supply an existing repository, check its visibility yourself. Plugin sync includes plugin settings, which can contain credentials.
+- Sync settings, plugins and playlists through a GitHub repository. [What syncs between devices](#sync-between-devices)
+
+## Sync between devices
+
+The development build syncs playlists from **Local Files** and **GD Music**. Published v0.3.0 only includes the built-in source’s playlists. Use the new build on both devices. A first sync can read the earlier repository format. Later writes use separate files for the new format.
+
+1. In **Settings → Sync**, sign in to the same GitHub account and select the same repository on both devices. Use **Copy code** to paste the authorization code into GitHub. New repositories are private. Check the visibility of any existing repository you choose.
+2. Enable **Sync Playlists**. For GD Music, install the plugin on both devices or also enable **Sync Plugins** to transfer it. Select GD Music in the player to view its playlists. Plugin sync includes settings that may contain credentials. The GitHub sync token stays on the device.
+3. Press **Sync Now**. The player shows its current stage, files or sources processed, and the resulting playlist and like counts for each source. Configured devices also check at startup and every five minutes.
+
+The first sync combines playlists by ID, track membership and likes. Later syncs compare both sides with the last successful merge, so independent additions survive and removing a known track can propagate. An entirely empty collection imports the populated copy. If a list is deleted on one device and concurrently edited on the other, the edited list survives. GD Music sends the song details referenced by the selected items. Local folders, audio files, download queues, recent plays and plugin caches stay on the device. A local song can play only where its file is available.
+
 
 ## Build
 

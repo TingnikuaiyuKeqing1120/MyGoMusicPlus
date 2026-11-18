@@ -19,13 +19,13 @@ func (a *app) syncSettings(c *ui.Context, row settingsRow, p palette) {
 		a.deviceSignIn(c, row, p)
 	}
 	row(T("GitHub Token"), T("A personal access token with repo access, kept on this device alone"), func() {
-		in := ui.TextInput(c.Key("sync-token"), &s.cfg.Token).Label(T("GitHub Token")).Placeholder("ghp_…").Password().Width(220).MaxWidthPercent(100)
+		in := ui.TextInput(c.Key("sync-token"), &s.cfg.Token).Label(T("GitHub Token")).Placeholder("ghp_…").Password().Disabled(s.busy).Width(220).MaxWidthPercent(100)
 		if in.Submitted() || !in.Focused() && s.cfg.Token != s.saved.Token {
 			a.saveSyncConfig()
 		}
 	})
 	row(T("Repository"), T("A private repository under your account, made if it isn't there"), func() {
-		in := ui.TextInput(c.Key("sync-repo"), &s.cfg.Repo).Label(T("Repository")).Placeholder("mygo-music-sync").Width(220).MaxWidthPercent(100)
+		in := ui.TextInput(c.Key("sync-repo"), &s.cfg.Repo).Label(T("Repository")).Placeholder("mygo-music-sync").Disabled(s.busy).Width(220).MaxWidthPercent(100)
 		if in.Submitted() || !in.Focused() && s.cfg.Repo != s.saved.Repo {
 			a.saveSyncConfig()
 		}
@@ -34,20 +34,28 @@ func (a *app) syncSettings(c *ui.Context, row settingsRow, p palette) {
 		on := s.cfg.Units[u]
 		label, desc := syncUnitText(u)
 		row(label, desc, func() {
-			if ui.Switch(c.Key("sync-"+string(u)), &on).Label(label).Changed() {
+			ui.Switch(c.Key("sync-"+string(u)), &on).Label(label).Disabled(s.busy).OnClick(func() {
+				if s.cfg.Units == nil {
+					s.cfg.Units = map[sync.Unit]bool{}
+				}
 				s.cfg.Units[u] = on
 				a.saveSyncConfig()
-			}
+			})
 		})
 	}
 	row(T("Sync Now"), syncStatusDesc(s), func() {
-		if ui.Button(c.Key("sync-now"), T("Sync Now")).Disabled(s.busy || !s.cfg.Enabled()).Clicked() {
-			a.syncNow()
-		}
+		ui.Column(c).MaxWidthPercent(100).Gap(5).Children(func() {
+			if ui.Button(c.Key("sync-now"), T("Sync Now")).Disabled(s.busy || !s.cfg.Enabled()).Clicked() {
+				a.syncNow()
+			}
+			if s.busy && s.total > 0 {
+				ui.Progress(c.Key("sync-progress"), float64(s.done)/float64(s.total)).Width(150).MaxWidthPercent(100).Label(syncStatusDesc(s))
+			}
+			if s.err != "" {
+				ui.Text(c, s.err).FontSize(12).TextColor(p.accent).LineHeight(1.4)
+			}
+		})
 	})
-	if s.err != "" {
-		ui.Text(c, s.err).FontSize(12).TextColor(p.accent).LineHeight(1.4)
-	}
 }
 
 // deviceSignIn is the GitHub sign-in of the device flow: a button to start
@@ -62,7 +70,7 @@ func (a *app) deviceSignIn(c *ui.Context, row settingsRow, p palette) {
 			desc = T("A GitHub token is set for sync on this device.")
 		}
 		row(T("GitHub Sign-in"), desc, func() {
-			if ui.Button(c.Key("device-start"), T("Sign in with GitHub")).Clicked() {
+			if ui.Button(c.Key("device-start"), T("Sign in with GitHub")).Disabled(s.busy).Clicked() {
 				a.startDeviceFlow()
 			}
 		})
@@ -82,6 +90,16 @@ func (a *app) deviceSignIn(c *ui.Context, row settingsRow, p palette) {
 				ui.Text(c, T("Asking GitHub…")).FontSize(13).TextColor(p.muted)
 			default:
 				ui.Text(c, d.userCode).FontSize(22).FontWeight(700)
+				ui.Button(c.Key("device-copy"), T("Copy code")).OnClick(func() {
+					if err := copyDeviceCode(d.userCode); err != nil {
+						d.copyStatus = T("Couldn't copy the code.")
+					} else {
+						d.copyStatus = T("Code copied")
+					}
+				})
+				if d.copyStatus != "" {
+					ui.Text(c, d.copyStatus).FontSize(12).TextColor(p.muted)
+				}
 				ui.Text(c, T("Waiting for GitHub to confirm authorization…")).FontSize(12).TextColor(p.muted)
 				ui.Button(c.Key("device-open"), T("Open GitHub's Device Page")).OnClick(func() { a.openDevicePage(d.uri, true) })
 				if openGitHubDevicePage != nil {
@@ -110,7 +128,7 @@ func syncUnitText(u sync.Unit) (label, desc string) {
 	case sync.UnitSettings:
 		return T("Sync Settings"), T("Your preferences, like language, appearance and quality")
 	case sync.UnitPlaylists:
-		return T("Sync Playlists"), T("Your playlists and likes in the built-in source, merged across devices")
+		return T("Sync Playlists"), T("Playlists and likes from Local Files and GD Music")
 	default:
 		return T("Sync Plugins"), T("The plugins you installed and their setup")
 	}
@@ -119,10 +137,17 @@ func syncUnitText(u sync.Unit) (label, desc string) {
 // syncStatusDesc says when syncing last came through, or what it's doing.
 func syncStatusDesc(s *syncState) string {
 	if s.busy {
-		return T("Syncing…")
+		if s.total > 0 {
+			return Tf("%s (%d/%d)", T(s.phase), s.done, s.total)
+		}
+		return T(s.phase)
 	}
 	if s.last.IsZero() {
 		return T("Pulls what changed elsewhere, pushes what changed here")
 	}
-	return Tf("Last synced %s", i18n.Ago(s.last, time.Now()))
+	last := Tf("Last synced %s", i18n.Ago(s.last, time.Now()))
+	if s.summary != "" {
+		return last + " · " + s.summary
+	}
+	return last
 }

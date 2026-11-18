@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -71,58 +72,70 @@ func (g *GitHub) EnsureRepo() error {
 
 // Get returns a file's bytes, or nil if it isn't there.
 func (g *GitHub) Get(path string) ([]byte, error) {
-	if err := g.ensureOwner(); err != nil {
-		return nil, err
-	}
-	var f struct {
-		Content  string `json:"content"`
-		Encoding string `json:"encoding"`
-	}
-	st, err := g.api("GET", g.contentsPath(path), nil, &f)
-	if err != nil {
-		return nil, err
-	}
-	if st == 404 {
-		return nil, nil
-	}
-	if st != 200 {
-		return nil, fmt.Errorf("github: reading %s (%d)", path, st)
-	}
-	if f.Encoding != "base64" {
-		return nil, fmt.Errorf("github: %s came in an unknown encoding", path)
-	}
-	b, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(f.Content, "\n", ""))
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
+	b, _, err := g.ReadVersion(path)
+	return b, err
 }
 
-// Put writes a file, creating or replacing it.
-func (g *GitHub) Put(path string, b []byte) error {
+func (g *GitHub) RepositoryID() string { return g.owner + "/" + g.Repo }
+
+func (g *GitHub) ReadVersion(path string) ([]byte, string, error) {
 	if err := g.ensureOwner(); err != nil {
-		return err
+		return nil, "", err
 	}
-	var cur struct {
-		Sha string `json:"sha"`
+	var f struct{ Content, Encoding, Sha string }
+	st, err := g.api("GET", g.contentsPath(path), nil, &f)
+	if err != nil {
+		return nil, "", err
 	}
-	st, err := g.api("GET", g.contentsPath(path), nil, &cur)
+	if st == 404 {
+		return nil, "", nil
+	}
+	if st != 200 {
+		return nil, "", fmt.Errorf("github: reading %s (%d)", path, st)
+	}
+	rev := f.Sha
+	if f.Encoding == "none" && rev != "" {
+		st, err = g.api("GET", "/repos/"+g.owner+"/"+g.Repo+"/git/blobs/"+url.PathEscape(rev), nil, &f)
+		if err != nil {
+			return nil, "", err
+		}
+		if st != 200 {
+			return nil, "", fmt.Errorf("github: reading blob for %s (%d)", path, st)
+		}
+	}
+	if f.Encoding != "base64" || rev == "" {
+		return nil, "", fmt.Errorf("github: invalid contents for %s", path)
+	}
+	b, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(f.Content, "\n", ""))
+	return b, rev, err
+}
+
+func (g *GitHub) Put(path string, b []byte) error {
+	current, rev, err := g.ReadVersion(path)
 	if err != nil {
 		return err
 	}
-	if st != 200 && st != 404 {
-		return fmt.Errorf("github: reading %s (%d)", path, st)
+	if rev != "" && bytes.Equal(current, b) {
+		return nil
 	}
+	return g.PutVersion(path, b, rev)
+}
+
+// PutVersion never substitutes a newer revision for the one we merged.
+func (g *GitHub) PutVersion(path string, b []byte, rev string) error {
 	body := map[string]any{
 		"message": "sync: " + path,
 		"content": base64.StdEncoding.EncodeToString(b),
 	}
-	if st == 200 {
-		body["sha"] = cur.Sha
+	if rev != "" {
+		body["sha"] = rev
 	}
-	st, err = g.api("PUT", g.contentsPath(path), body, nil)
+	st, err := g.api("PUT", g.contentsPath(path), body, nil)
 	if err != nil {
 		return err
+	}
+	if st == 409 || st == 422 {
+		return fmt.Errorf("%w: %s (%d)", ErrConflict, path, st)
 	}
 	if st != 200 && st != 201 {
 		return fmt.Errorf("github: writing %s (%d)", path, st)
@@ -131,7 +144,11 @@ func (g *GitHub) Put(path string, b []byte) error {
 }
 
 func (g *GitHub) contentsPath(path string) string {
-	return "/repos/" + g.owner + "/" + g.Repo + "/contents/" + path
+	parts := strings.Split(path, "/")
+	for i := range parts {
+		parts[i] = url.PathEscape(parts[i])
+	}
+	return "/repos/" + url.PathEscape(g.owner) + "/" + url.PathEscape(g.Repo) + "/contents/" + strings.Join(parts, "/")
 }
 
 func (g *GitHub) api(method, path string, body any, out any) (int, error) {

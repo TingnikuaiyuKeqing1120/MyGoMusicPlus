@@ -230,7 +230,9 @@ func (p Profiles) prepare(stage string) error {
 	}
 	for _, item := range existing {
 		name := item.Name()
-		if incoming[name] || name == "plugins" || name == "plugin-data" {
+		// An imported library starts a fresh merge with the cloud. Its previous
+		// sync ancestor belongs to the profile saved in the backup.
+		if name == "sync-history" || incoming[name] || name == "plugins" || name == "plugin-data" {
 			continue
 		}
 		if err := copyEntry(filepath.Join(p.Target, name), filepath.Join(stage, name)); err != nil {
@@ -322,7 +324,7 @@ func (p Profiles) plugins(stage string) error {
 				return err
 			}
 			var id string
-			if json.Unmarshal(m["id"], &id) != nil || id == "" || ids[root][id] {
+			if json.Unmarshal(m["id"], &id) != nil || id == "" || (root == p.Source && ids[root][id]) {
 				return fmt.Errorf("invalid or duplicate plugin ID in %s", e.Name())
 			}
 			ids[root][id], names[root][e.Name()] = true, id

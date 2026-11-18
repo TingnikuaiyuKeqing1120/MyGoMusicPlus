@@ -5,9 +5,13 @@
 package sync
 
 import (
+	"bytes"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -54,6 +58,7 @@ func (c Config) Enabled() bool {
 // File is one file as the manifest holds it: where it is, what it holds, and
 // when it last changed, as Unix nanoseconds.
 type File struct {
+	Object    bool   `json:"object,omitempty"`
 	Path      string `json:"path"`
 	Sha       string `json:"sha"`
 	UpdatedAt int64  `json:"updatedAt"`
@@ -69,6 +74,7 @@ type Manifest struct {
 // Store is the repository synced with: GitHub's contents API in the app, a
 // fake in tests. Paths are slash-separated, relative to the repository.
 type Store interface {
+	CollectionStore
 	// EnsureRepo makes the private repository if it isn't there yet.
 	EnsureRepo() error
 	// Get returns a file's bytes, or nil if it isn't there.
@@ -86,8 +92,12 @@ const (
 
 // Engine syncs a device's data directory with a store.
 type Engine struct {
-	Root  string // the user data directory
-	Store Store
+	Progress func(phase string, done, total int)
+	Changed  []string
+	RepoID   string
+	Defaults []byte
+	Root     string // the user data directory
+	Store    Store
 }
 
 // localFile is a file on this device, offered to sync.
@@ -98,121 +108,281 @@ type localFile struct {
 	content []byte
 }
 
-// Push sends what changed here since the repository last heard of it, and
-// updates the manifest. What's newer elsewhere is left for Pull.
-func (e *Engine) Push(units map[Unit]bool) error {
-	if err := e.Store.EnsureRepo(); err != nil {
-		return err
+func (e *Engine) report(phase string, done, total int) {
+	if e.Progress != nil {
+		e.Progress(phase, done, total)
 	}
-	m, err := e.readManifest()
-	if err != nil {
-		return err
-	}
-	locals, err := e.localFiles(units)
-	if err != nil {
-		return err
-	}
-	changed := false
-	for _, lf := range locals {
-		rp := dataPrefix + lf.rel
-		old := m.Files[lf.rel]
-		if old.Sha == lf.sha() && old.UpdatedAt >= lf.modTime {
-			continue
+}
+
+// SyncFiles publishes one manifest revision after all its immutable file
+// contents exist. Two devices cannot silently overwrite each other's commit.
+func (e *Engine) SyncFiles(units map[Unit]bool) error {
+	for _, unit := range []Unit{UnitSettings, UnitPlugins} {
+		if units[unit] {
+			if err := e.syncUnit(unit); err != nil {
+				return err
+			}
 		}
-		if err := e.Store.Put(rp, lf.content); err != nil {
-			return err
-		}
-		m.Files[lf.rel] = File{Path: lf.rel, Sha: lf.sha(), UpdatedAt: lf.modTime, Unit: lf.unit}
-		changed = true
-	}
-	if changed {
-		return e.writeManifest(m)
 	}
 	return nil
 }
 
-// Pull takes what changed elsewhere since this device last wrote it, writing
-// it here. Playlists merge; the rest is taken whole from the newer side.
-func (e *Engine) Pull(units map[Unit]bool) error {
-	m, err := e.readManifest()
+func (e *Engine) syncUnit(unit Unit) error {
+	path := "files-v2/" + string(unit) + ".json"
+	raw, rev, err := e.Store.ReadVersion(path)
 	if err != nil {
 		return err
 	}
-	locals, err := e.localFiles(units)
-	if err != nil {
-		return err
-	}
-	byPath := map[string]localFile{}
-	for _, lf := range locals {
-		byPath[lf.rel] = lf
-	}
-	// Newest first, so a merge sees the local side as it is now.
-	rels := make([]string, 0, len(m.Files))
-	for rel := range m.Files {
-		rels = append(rels, rel)
-	}
-	slices.Sort(rels)
-	for _, rel := range rels {
-		rf := m.Files[rel]
-		if !units[rf.Unit] {
-			continue
-		}
-		lf, has := byPath[rel]
-		if has && lf.modTime >= rf.UpdatedAt {
-			continue // this side wrote it last
-		}
-		b, err := e.Store.Get(dataPrefix + rel)
+	legacy := raw == nil
+	if legacy {
+		raw, err = e.Store.Get(manifestPath)
 		if err != nil {
 			return err
 		}
-		if b == nil {
-			continue
-		}
-		if rf.Unit == UnitPlaylists && has {
-			b = mergeLibrary(lf.content, b, rf.UpdatedAt > lf.modTime)
-		}
-		if err := e.writeLocal(rel, b, rf.UpdatedAt); err != nil {
+	}
+	var m Manifest
+	if raw != nil {
+		if err = json.Unmarshal(raw, &m); err != nil {
 			return err
 		}
 	}
-	return nil
-}
-
-func (e *Engine) readManifest() (Manifest, error) {
-	b, err := e.Store.Get(manifestPath)
-	if err != nil {
-		return Manifest{}, err
-	}
-	m := Manifest{Version: 1, Files: map[string]File{}}
-	if b != nil {
-		if err := json.Unmarshal(b, &m); err != nil {
-			return Manifest{}, fmt.Errorf("reading the sync manifest: %w", err)
-		}
+	if m.Version > 2 {
+		return fmt.Errorf("unsupported sync manifest version %d", m.Version)
 	}
 	if m.Files == nil {
 		m.Files = map[string]File{}
 	}
-	return m, nil
-}
-
-func (e *Engine) writeManifest(m Manifest) error {
-	b, err := json.MarshalIndent(m, "", "  ")
+	m.Version = 2
+	checkpoint := filepath.Join(e.Root, "sync-history", fmt.Sprintf("%x", sha256.Sum256([]byte(e.RepoID))), "preferences-seen")
+	var last string
+	first := false
+	if unit == UnitSettings {
+		b, err := os.ReadFile(checkpoint)
+		last = string(b)
+		first = os.IsNotExist(err)
+		if err != nil && !first {
+			return err
+		}
+	}
+	locals, err := e.localFiles(map[Unit]bool{unit: true})
 	if err != nil {
 		return err
 	}
-	return e.Store.Put(manifestPath, b)
+	byPath := map[string]localFile{}
+	var paths []string
+	for _, lf := range locals {
+		byPath[lf.rel] = lf
+		paths = append(paths, lf.rel)
+	}
+	for path, rf := range m.Files {
+		if legacy && rf.Unit != unit {
+			delete(m.Files, path)
+			continue
+		}
+		if rf.Unit != unit || rf.Sha == "" || rf.Path != path || !allowedFile(path, unit) {
+			return fmt.Errorf("unexpected sync file %q", path)
+		}
+		if _, ok := byPath[path]; !ok {
+			paths = append(paths, path)
+		}
+	}
+	slices.Sort(paths)
+	changed := false
+	for i, path := range paths {
+		e.report("Checking remote files", i, len(paths))
+		lf, exists := byPath[path]
+		rf := m.Files[path]
+		if rf.Object && exists && rf.Sha == lf.sha() {
+			continue
+		}
+		chosen := lf
+		remoteWins := lf.modTime <= rf.UpdatedAt
+		if last != "" && exists {
+			if rf.Sha == last {
+				remoteWins = false
+			} else if lf.sha() == last {
+				remoteWins = true
+			}
+		}
+		if rf.Sha != "" && (!exists || remoteWins || first) {
+			remote, err := e.remoteFile(path, rf)
+			if err != nil {
+				return err
+			}
+			chosen = localFile{rel: path, unit: unit, modTime: rf.UpdatedAt, content: remote}
+			if first && exists {
+				chosen.content, err = initialPreferences(lf.content, remote, e.Defaults, lf.modTime > rf.UpdatedAt)
+				if err != nil {
+					return err
+				}
+				chosen.modTime = max(lf.modTime, rf.UpdatedAt)
+			}
+			if !exists || !bytes.Equal(chosen.content, lf.content) {
+				if err := e.applyFile(chosen, lf, exists); err != nil {
+					return err
+				}
+			}
+			if rf.Object && chosen.sha() == rf.Sha {
+				continue
+			}
+		}
+		e.report("Uploading local changes", i, len(paths))
+		sha := chosen.sha()
+		key, err := objectPath(sha)
+		if err != nil {
+			return err
+		}
+		if err = e.Store.Put(key, chosen.content); err != nil {
+			return err
+		}
+		m.Files[path] = File{Path: path, Unit: unit, Sha: sha, UpdatedAt: chosen.modTime, Object: true}
+		changed = true
+	}
+	e.report("Checking remote files", len(paths), len(paths))
+	if changed {
+		data, err := json.Marshal(m)
+		if err != nil {
+			return err
+		}
+		e.report("Saving the sync manifest…", 0, 0)
+		if err = e.Store.PutVersion(path, data, rev); err != nil {
+			return err
+		}
+	}
+	if unit == UnitSettings {
+		if sum := m.Files["settings.json"].Sha; sum != "" && sum != last {
+			return writeAtomic(checkpoint, []byte(sum))
+		}
+	}
+	return nil
 }
 
-func (e *Engine) writeLocal(rel string, b []byte, updatedAt int64) error {
-	p := filepath.Join(e.Root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+func (e *Engine) remoteFile(path string, rf File) ([]byte, error) {
+	key := dataPrefix + path
+	if rf.Object {
+		var err error
+		key, err = objectPath(rf.Sha)
+		if err != nil {
+			return nil, err
+		}
+	}
+	b, err := e.Store.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	if b == nil || (localFile{content: b}).sha() != rf.Sha {
+		return nil, fmt.Errorf("sync file changed or missing: %s", path)
+	}
+	if rf.Unit == UnitSettings {
+		return settingsBytes(b, nil)
+	}
+	return b, nil
+}
+
+func (e *Engine) applyFile(next, old localFile, existed bool) error {
+	disk := filepath.Join(e.Root, filepath.FromSlash(next.rel))
+	current, err := os.ReadFile(disk)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	if err := os.WriteFile(p, b, 0o644); err != nil {
+	if existed != (err == nil) {
+		return ErrConflict
+	}
+	projected, data := current, next.content
+	if next.unit == UnitSettings {
+		if current != nil {
+			projected, err = settingsBytes(current, nil)
+			if err != nil {
+				return err
+			}
+		}
+		data, err = settingsBytes(data, current)
+		if err != nil {
+			return err
+		}
+	}
+	if !bytes.Equal(projected, old.content) {
+		return ErrConflict
+	}
+	if err = writeAtomic(disk, data); err != nil {
 		return err
 	}
-	t := time.Unix(0, updatedAt)
-	return os.Chtimes(p, t, t)
+	e.Changed = append(e.Changed, next.rel)
+	stamp := time.Unix(0, next.modTime)
+	return os.Chtimes(disk, stamp, stamp)
+}
+
+// A new device writes its default settings during startup. On first contact
+// those defaults should not clear a preference explicitly set elsewhere.
+func initialPreferences(local, remote, defaults []byte, localNewer bool) ([]byte, error) {
+	var l, r, d map[string]json.RawMessage
+	for _, entry := range []struct {
+		data []byte
+		dst  *map[string]json.RawMessage
+	}{{local, &l}, {remote, &r}, {defaults, &d}} {
+		if len(entry.data) > 0 {
+			if err := json.Unmarshal(entry.data, entry.dst); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for k, v := range l {
+		other, exists := r[k]
+		if !exists || bytes.Equal(other, d[k]) || localNewer && !bytes.Equal(v, d[k]) {
+			r[k] = v
+		}
+	}
+	return json.Marshal(r)
+}
+
+func objectPath(sha string) (string, error) {
+	b, err := base64.StdEncoding.DecodeString(sha)
+	if err != nil || len(b) != sha1.Size {
+		return "", fmt.Errorf("invalid sync digest")
+	}
+	return "files-v2/objects/" + hex.EncodeToString(b), nil
+}
+
+func allowedFile(rel string, unit Unit) bool {
+	if !fs.ValidPath(rel) || !filepath.IsLocal(filepath.FromSlash(rel)) || strings.ContainsAny(rel, `\:`) {
+		return false
+	}
+	parts := strings.Split(rel, "/")
+	if unit == UnitSettings {
+		return rel == "settings.json"
+	}
+	if unit != UnitPlugins || len(parts) < 3 {
+		return false
+	}
+	for _, p := range parts {
+		if strings.HasPrefix(p, ".") {
+			return false
+		}
+	}
+	return parts[0] == "plugins" || parts[0] == "plugin-data" && len(parts) == 3 && (parts[2] == "settings.json" || parts[2] == "granted.json")
+}
+
+// Devices can have different installed sources and update histories.
+func settingsBytes(in, current []byte) ([]byte, error) {
+	var shared, local map[string]json.RawMessage
+	if err := json.Unmarshal(in, &shared); err != nil {
+		return nil, err
+	}
+	if shared == nil {
+		return nil, fmt.Errorf("invalid settings object")
+	}
+	if current != nil {
+		if err := json.Unmarshal(current, &local); err != nil {
+			return nil, err
+		}
+	}
+	for _, key := range []string{"source", "disabledPlugins", "appChecked", "pluginsChecked", "pluginUpdates"} {
+		delete(shared, key)
+		if v, ok := local[key]; ok {
+			shared[key] = v
+		}
+	}
+	return json.Marshal(shared)
 }
 
 func (lf localFile) sha() string {
@@ -236,16 +406,17 @@ func (e *Engine) localFiles(units map[Unit]bool) ([]localFile, error) {
 		if err != nil {
 			return err
 		}
+		if unit == UnitSettings {
+			b, err = settingsBytes(b, nil)
+			if err != nil {
+				return err
+			}
+		}
 		out = append(out, localFile{rel: rel, unit: unit, modTime: info.ModTime().UnixNano(), content: b})
 		return nil
 	}
 	if units[UnitSettings] {
 		if err := add("settings.json", UnitSettings); err != nil {
-			return nil, err
-		}
-	}
-	if units[UnitPlaylists] {
-		if err := add("local/library.json", UnitPlaylists); err != nil {
 			return nil, err
 		}
 	}

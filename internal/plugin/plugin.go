@@ -320,6 +320,7 @@ func Discover(dir, dataDir string) []*Plugin {
 		return nil
 	}
 	var plugins []*Plugin
+	byID := map[string]int{}
 	for _, e := range entries {
 		// A dot is what's on its way in, or anything else that's no plugin.
 		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
@@ -330,10 +331,20 @@ func Discover(dir, dataDir string) []*Plugin {
 			log.Printf("plugin: %v", err)
 			continue
 		}
+		if at, ok := byID[p.manifest.ID]; ok {
+			if e.Name() == p.manifest.ID {
+				plugins[at] = p
+			}
+			continue
+		}
+		byID[p.manifest.ID] = len(plugins)
 		plugins = append(plugins, p)
 	}
 	return plugins
 }
+
+// InstallFolder is the actual directory name, which can differ from the manifest ID.
+func (p *Plugin) InstallFolder() string { return filepath.Base(p.dir) }
 
 // Permissions are what plugin.json asks for.
 func (p *Plugin) Permissions() Permissions { return p.manifest.Permissions }

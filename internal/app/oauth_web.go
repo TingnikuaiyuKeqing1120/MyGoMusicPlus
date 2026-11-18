@@ -31,6 +31,14 @@ func useDeviceFlow() {
 			return bridge.Call("openGitHubDevicePage", preferApp).Bool()
 		}
 	}
+	if bridge.Get("copyDeviceCode").Type() == js.TypeFunction {
+		copyDeviceCode = func(code string) error {
+			if !bridge.Call("copyDeviceCode", code).Bool() {
+				return errors.New("clipboard unavailable")
+			}
+			return nil
+		}
+	}
 	js.Global().Set("__mygoDeviceResult", js.FuncOf(func(this js.Value, args []js.Value) any {
 		if len(args) < 2 {
 			return nil

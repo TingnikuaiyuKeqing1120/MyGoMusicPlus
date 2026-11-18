@@ -39,6 +39,8 @@ func TestImport(t *testing.T) {
 	put(t, p.Source, "plugin-data/gdstudio/storage.json", `{"liked":["song"]}`)
 	put(t, p.Source, "local/library.json", `{"folders":["music"]}`)
 	put(t, p.Target, "settings.json", `{"language":"en","updateMirror":true}`)
+	put(t, p.Target, "plugins/older-gd/plugin.json", `{"id":"gdstudio"}`)
+	put(t, p.Target, "sync-history/test/local.json", `{"likes":["before"]}`)
 	put(t, p.Target, "plugins/gdstudio/plugin.json", `{"id":"gdstudio"}`)
 	put(t, p.Target, "plugin-data/gdstudio/granted.json", "true")
 	put(t, p.Target, "plugins/extra/plugin.json", `{"id":"extra"}`)
@@ -63,11 +65,12 @@ func TestImport(t *testing.T) {
 	checkText(t, p.Target, "plugins/extra/plugin.json", `{"id":"extra"}`)
 	checkText(t, p.Target, "sync.json", `{"repo":"fixture"}`)
 	checkText(t, p.Target, "local/library.json", `{"folders":["music"]}`)
-	for _, name := range []string{"plugins/gdstudio", "plugin-data/gdstudio/granted.json"} {
+	for _, name := range []string{"plugins/gdstudio", "plugins/older-gd", "sync-history", "plugin-data/gdstudio/granted.json"} {
 		if _, err := os.Stat(filepath.Join(p.Target, name)); !errors.Is(err, fs.ErrNotExist) {
 			t.Fatalf("%s: %v", name, err)
 		}
 	}
+	checkText(t, before, "sync-history/test/local.json", `{"likes":["before"]}`)
 	checkText(t, stable.Target, "settings.json", "stable")
 	checkText(t, p.Source, "settings.json", `{"language":"zh-CN"}`)
 	if backup, err := p.ApplyRequested(); backup != "" || err != nil {

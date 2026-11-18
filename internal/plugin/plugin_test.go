@@ -25,6 +25,27 @@ import (
 // The test binary is the program plugins start: with this set, it echoes lines.
 const echoEnv = "MYGO_MUSIC_TEST_ECHO"
 
+// An imported plugin and its canonical installation share storage and must have a single live host.
+func TestDiscoverDuplicateManifestID(t *testing.T) {
+	root, data := t.TempDir(), t.TempDir()
+	for _, name := range []string{"gd-music-plugin", "gdstudio"} {
+		dir := filepath.Join(root, name)
+		if err := os.Mkdir(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(`{"id":"gdstudio","name":"GD"}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "index.js"), []byte("export function home(){return {}}"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plugins := Discover(root, data)
+	if len(plugins) != 1 || plugins[0].InstallFolder() != "gdstudio" {
+		t.Fatalf("ambiguous hosts: %v", plugins)
+	}
+}
+
 func TestMain(m *testing.M) {
 	if os.Getenv(echoEnv) == "fail" {
 		fmt.Fprintln(os.Stderr, "the reason it stopped")

@@ -1,7 +1,8 @@
 package sync
 
 import (
-	"encoding/json"
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -64,17 +65,15 @@ func TestPushPullAcrossDevices(t *testing.T) {
 	write(t, a, "plugin-data/gdstudio/storage.json", `{"covers":{}}`, now) // cache: not synced
 
 	ea := &Engine{Root: a, Store: store}
-	if err := ea.Push(allUnits()); err != nil {
+	if err := ea.SyncFiles(allUnits()); err != nil {
 		t.Fatal(err)
 	}
-	if !store.made {
-		t.Fatal("the repository wasn't made")
-	}
-	if _, ok := store.files["data/plugin-data/gdstudio/storage.json"]; ok {
+
+	if bytes.Contains(store.files["files-v2/plugins.json"], []byte("storage.json")) {
 		t.Fatal("the plugin's cache was synced")
 	}
 	eb := &Engine{Root: b, Store: store}
-	if err := eb.Pull(allUnits()); err != nil {
+	if err := eb.SyncFiles(allUnits()); err != nil {
 		t.Fatal(err)
 	}
 	if got := read(t, b, "settings.json"); got != `{"quality":"lossless"}` {
@@ -95,17 +94,17 @@ func TestLastWriteWins(t *testing.T) {
 	t0 := time.Now().Add(-time.Hour)
 	write(t, a, "settings.json", `{"v":1}`, t0)
 	ea := &Engine{Root: a, Store: store}
-	if err := ea.Push(allUnits()); err != nil {
+	if err := ea.SyncFiles(allUnits()); err != nil {
 		t.Fatal(err)
 	}
 	// B writes a newer version, pushes it.
 	write(t, b, "settings.json", `{"v":2}`, time.Now())
 	eb := &Engine{Root: b, Store: store}
-	if err := eb.Push(allUnits()); err != nil {
+	if err := eb.SyncFiles(allUnits()); err != nil {
 		t.Fatal(err)
 	}
 	// A pulls: B's newer version wins.
-	if err := ea.Pull(allUnits()); err != nil {
+	if err := ea.SyncFiles(allUnits()); err != nil {
 		t.Fatal(err)
 	}
 	if got := read(t, a, "settings.json"); got != `{"v":2}` {
@@ -113,10 +112,10 @@ func TestLastWriteWins(t *testing.T) {
 	}
 	// A writes again, newer still; B pulls and takes it.
 	write(t, a, "settings.json", `{"v":3}`, time.Now().Add(time.Hour))
-	if err := ea.Push(allUnits()); err != nil {
+	if err := ea.SyncFiles(allUnits()); err != nil {
 		t.Fatal(err)
 	}
-	if err := eb.Pull(allUnits()); err != nil {
+	if err := eb.SyncFiles(allUnits()); err != nil {
 		t.Fatal(err)
 	}
 	if got := read(t, b, "settings.json"); got != `{"v":3}` {
@@ -133,11 +132,11 @@ func TestIndependentUnits(t *testing.T) {
 	write(t, a, "plugins/gdstudio/plugin.json", `{"id":"gdstudio"}`, now)
 	ea := &Engine{Root: a, Store: store}
 	only := map[Unit]bool{UnitSettings: true}
-	if err := ea.Push(only); err != nil {
+	if err := ea.SyncFiles(only); err != nil {
 		t.Fatal(err)
 	}
 	eb := &Engine{Root: b, Store: store}
-	if err := eb.Pull(allUnits()); err != nil {
+	if err := eb.SyncFiles(allUnits()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(b, "settings.json")); err != nil {
@@ -148,49 +147,17 @@ func TestIndependentUnits(t *testing.T) {
 	}
 }
 
-// Playlists merge by ID, the newer side winning a conflict, each device
-// keeping its own folders; likes union.
-func TestPlaylistMerge(t *testing.T) {
-	local := `{"folders":["E:\\Music"],"likes":["x","y"],"playlists":[{"id":"1","name":"Mine","tracks":["a"]},{"id":"2","name":"Local","tracks":["b"]}],"recent":["z"]}`
-	remote := `{"folders":["/phone/music"],"likes":["y","w"],"playlists":[{"id":"1","name":"Renamed","tracks":["a","c"]},{"id":"3","name":"Remote","tracks":["d"]}],"recent":["q"]}`
-	got := mergeLibrary([]byte(local), []byte(remote), true)
-	var l libraryJSON
-	if err := json.Unmarshal(got, &l); err != nil {
-		t.Fatal(err)
+func (f *fakeStore) ReadVersion(path string) ([]byte, string, error) {
+	b := f.files[path]
+	if b == nil {
+		return nil, "", nil
 	}
-	if len(l.Folders) != 1 || l.Folders[0] != "E:\\Music" {
-		t.Fatalf("local folders weren't kept: %v", l.Folders)
+	return b, (localFile{content: b}).sha(), nil
+}
+func (f *fakeStore) PutVersion(path string, b []byte, rev string) error {
+	_, current, _ := f.ReadVersion(path)
+	if current != rev {
+		return fmt.Errorf("%w: %s", ErrConflict, path)
 	}
-	if len(l.Recent) != 1 || l.Recent[0] != "z" {
-		t.Fatalf("local recent weren't kept: %v", l.Recent)
-	}
-	byID := map[string]playlistJSON{}
-	for _, p := range l.Playlists {
-		byID[p.ID] = p
-	}
-	if len(byID) != 3 {
-		t.Fatalf("playlists didn't union: %v", l.Playlists)
-	}
-	if byID["1"].Name != "Renamed" || len(byID["1"].Tracks) != 2 {
-		t.Fatalf("the newer side didn't win the conflict: %v", byID["1"])
-	}
-	if _, ok := byID["2"]; !ok {
-		t.Fatal("the local-only playlist was lost")
-	}
-	if _, ok := byID["3"]; !ok {
-		t.Fatal("the remote-only playlist was lost")
-	}
-	if len(l.Likes) != 3 {
-		t.Fatalf("likes didn't union: %v", l.Likes)
-	}
-	// The older remote doesn't win a conflict.
-	got = mergeLibrary([]byte(local), []byte(remote), false)
-	byID = map[string]playlistJSON{}
-	json.Unmarshal(got, &l)
-	for _, p := range l.Playlists {
-		byID[p.ID] = p
-	}
-	if byID["1"].Name != "Mine" {
-		t.Fatalf("the older side won the conflict: %v", byID["1"])
-	}
+	return f.Put(path, b)
 }

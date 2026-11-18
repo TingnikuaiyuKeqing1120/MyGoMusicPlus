@@ -40,7 +40,7 @@ func (a *app) importSettings(c *ui.Context, row settingsRow) {
 		return
 	}
 	row(T("Import from MyGo Music"), T("Copy this computer's original player profile into this edition of Plus."), func() {
-		ui.Button(c.Key("import-upstream"), T("Import from Original")).OnClick(func() {
+		ui.Button(c.Key("import-upstream"), T("Import from Original")).Disabled(a.syncer.busy).OnClick(func() {
 			confirmProfileImport(a.settingsWin, func(yes bool) {
 				if !yes {
 					return

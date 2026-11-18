@@ -28,17 +28,24 @@ func TestDeviceFlowSyncPage(t *testing.T) {
 	a := newTestApp()
 	a.settingsWeb, a.settingsPage = true, "sync"
 	a.syncer.device = &deviceFlow{userCode: "TEST-CODE", uri: "https://github.com/login/device"}
+	var copied string
+	previous := copyDeviceCode
+	t.Cleanup(func() { copyDeviceCode = previous })
+	copyDeviceCode = func(code string) error { copied = code; return nil }
 	tt := ui.NewTester(a.view, 320, 720)
 	tt.SetDark(true)
 	settled(tt)
 	if dir := os.Getenv("MM_FRAMES"); dir != "" {
 		saveFrame(t, dir, "github-device-sync-narrow.png", tt.Image())
 	}
-	for _, name := range []string{"Open GitHub's Device Page", "Open in Browser", "Cancel"} {
+	for _, name := range []string{"Copy code", "Open GitHub's Device Page", "Open in Browser", "Cancel"} {
 		if err := tt.Click(T(name)); err != nil {
 			t.Fatal(err)
 		}
 		tt.Frame()
+	}
+	if copied != "TEST-CODE" {
+		t.Fatalf("copied %q", copied)
 	}
 	if !slices.Equal(routes, []bool{true, false}) || a.syncer.device != nil {
 		t.Fatalf("opened routes %v, device flow still active: %t", routes, a.syncer.device != nil)

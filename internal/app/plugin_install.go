@@ -260,16 +260,21 @@ func pluginOf(lib *library) *plugin.Plugin {
 
 // pluginInstalled takes in what was just installed: a new plugin, or a new
 // version of one, which takes its place without opening the app again.
-func (a *app) pluginInstalled(id string) error {
+func (a *app) pluginInstalled(folder string) error {
+	p, err := plugin.Load(filepath.Join(pluginsDir(), folder), userDataDir("plugin-data"))
+	if err != nil {
+		return err
+	}
+	a.activateInstalledPlugin(p)
+	return nil
+}
+func (a *app) activateInstalledPlugin(p *plugin.Plugin) {
+	id := p.Info().ID
 	in := &a.installer
 	delete(a.settings.PluginUpdates, id)
 	a.settings.save()
 	delete(in.updating, id)
 	delete(in.found, id)
-	p, err := plugin.Load(filepath.Join(pluginsDir(), id), userDataDir("plugin-data"))
-	if err != nil {
-		return err
-	}
 	lib := newLibrary(p)
 	at := slices.IndexFunc(a.allLibs, func(l *library) bool { return l.id == id })
 	if at < 0 {
@@ -277,7 +282,7 @@ func (a *app) pluginInstalled(id string) error {
 		a.plugins = append(a.plugins, p)
 		a.enabledChanged()
 		a.redraw()
-		return nil
+		return
 	}
 	old := a.allLibs[at]
 	a.allLibs[at] = lib
@@ -294,7 +299,6 @@ func (a *app) pluginInstalled(id string) error {
 		a.load(a.route)
 	}
 	a.redraw()
-	return nil
 }
 
 // removePlugin takes a plugin out, what it keeps of its own staying for if it

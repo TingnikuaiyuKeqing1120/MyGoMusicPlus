@@ -22,15 +22,18 @@ var (
 // openGitHubDevicePage lets the Android shell choose GitHub Mobile or a browser.
 var openGitHubDevicePage func(preferApp bool) bool
 
+var copyDeviceCode = func(code string) error { return copyText(code) }
+
 // deviceFlow is a GitHub sign-in on its way: the code the listener enters at
 // GitHub's device page, and the asking for the token once they have.
 type deviceFlow struct {
-	userCode string
-	uri      string
-	code     string // the device code, for the polling
-	interval time.Duration
-	expires  time.Time
-	err      string
+	copyStatus string
+	userCode   string
+	uri        string
+	code       string // the device code, for the polling
+	interval   time.Duration
+	expires    time.Time
+	err        string
 }
 
 // startDeviceFlow asks GitHub for a code to sign in with, the shell making

@@ -132,6 +132,7 @@ func (a *app) toggleLike(tr *music.Track) {
 				return
 			}
 			a.likedChanged(lib, liked, like)
+			a.markSyncDirty()
 		})
 	}()
 }

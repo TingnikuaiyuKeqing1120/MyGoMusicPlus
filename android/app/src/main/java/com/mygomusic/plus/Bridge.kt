@@ -1,6 +1,8 @@
 package com.mygomusic.plus
 
 import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -14,6 +16,15 @@ internal fun Configuration.isNightMode(): Boolean =
 // playback metadata/state/position to PlaybackService (notification, lock
 // screen, audio focus) and offers share / open-external.
 class Bridge(private val ctx: Context, private val chooseMusicFolder: () -> Unit) {
+
+    @JavascriptInterface
+    fun copyDeviceCode(code: String): Boolean = try {
+        val clipboard = ctx.getSystemService(ClipboardManager::class.java)
+        clipboard.setPrimaryClip(ClipData.newPlainText("GitHub", code))
+        true
+    } catch (_: RuntimeException) {
+        false
+    }
 
     @JavascriptInterface
     fun pickMusicFolder() = chooseMusicFolder()

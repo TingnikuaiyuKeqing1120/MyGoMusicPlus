@@ -139,6 +139,7 @@ func (a *app) loadMine(lib *library) {
 // playlistChanged forgets what was loaded of playlist id, which its source
 // changed: loaded anew if shown, and the sidebar's covers with it.
 func (a *app) playlistChanged(lib *library, id string) {
+	a.markSyncDirty()
 	delete(lib.playlists, id)
 	if a.route.page == pagePlaylist && a.route.src == lib.id && a.route.id == id {
 		a.loadPlaylist(lib, id, false)
@@ -188,7 +189,9 @@ func (a *app) submitName() {
 				if err != nil {
 					lib.setPlaylistName(id, old)
 					a.actionFailed(lib, err, T("Couldn't rename the playlist. Try again later."))
+					return
 				}
+				a.markSyncDirty()
 			})
 		}()
 		return
@@ -203,6 +206,7 @@ func (a *app) submitName() {
 				a.actionFailed(lib, err, T("Couldn't create the playlist. Try again later."))
 				return
 			}
+			a.markSyncDirty()
 			a.naming.open = false
 			pl.Mine = true
 			lib.mine = slices.Insert(slices.Clone(lib.mine), 0, *pl)
@@ -254,6 +258,7 @@ func (a *app) deleteChosen() {
 				return
 			}
 			delete(lib.playlists, id)
+			a.markSyncDirty()
 			a.toast = T("Playlist deleted")
 		})
 	}()
