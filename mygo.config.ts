@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 // `mygo dev` and `mygo build` evaluate this with Bun or Node.js. The development
 // app has its own link scheme, leaving mygo-music:// to the installed app.
 export default ({ command }: { command: string }) => {
@@ -15,7 +17,11 @@ export default ({ command }: { command: string }) => {
     version: "0.2.3",
     out: "build",
     urlSchemes: [plusDev || command === "dev" ? slug + "-dev" : slug],
-    updates: plusDesktop ? undefined : {
+    updates: plusDev ? undefined : plusDesktop ? {
+      github: "TingnikuaiyuKeqing1120/MyGoMusicPlus",
+      publicKey: readFileSync(new URL("./scripts/release/plus-update.pub", import.meta.url), "utf8").trim(),
+      deltas: 0,
+    } : {
       publicKey: "WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ=",
       github: "egoist/mygo-music",
     },

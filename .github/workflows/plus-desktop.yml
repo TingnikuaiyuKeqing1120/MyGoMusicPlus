@@ -1,0 +1,71 @@
+name: Plus desktop packages
+on:
+  push:
+    branches: [codex/verify-plus-desktop]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    if: github.repository == 'TingnikuaiyuKeqing1120/MyGoMusicPlus'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, target: windows-amd64, platform: windows/amd64 }
+          - { os: macos-15, target: darwin-arm64, platform: darwin/arm64 }
+          - { os: macos-15-intel, target: darwin-amd64, platform: darwin/amd64 }
+          - { os: ubuntu-24.04, target: linux-amd64, platform: linux/amd64 }
+          - { os: ubuntu-24.04-arm, target: linux-arm64, platform: linux/arm64 }
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.target }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      MYGO_PLUS_DESKTOP: "1"
+      TARGET: ${{ matrix.target }}
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Test the player
+        run: go test ./internal/...
+      - name: Build preview with a disposable signing key
+        if: github.ref_type == 'branch'
+        run: |
+          keys="$(mktemp -d)"
+          go tool mygo keygen -o "$keys"
+          cp "$keys/mygo-update.pub" scripts/release/plus-update.pub
+          MYGO_UPDATER_PRIVATE_KEY="$(cat "$keys/mygo-update.key")" go tool mygo build -platform "$PLATFORM"
+      - name: Build tag with the Plus signing key
+        if: github.ref_type == 'tag'
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: |
+          test -n "$MYGO_UPDATER_PRIVATE_KEY"
+          version="$(node --input-type=module -e 'import c from "./mygo.config.ts"; console.log(c({command:"build"}).version)')"
+          test "$GITHUB_REF_NAME" = "v$version"
+          go tool mygo build -platform "$PLATFORM"
+      - name: Verify the signed update archive
+        run: node scripts/release/check-desktop.mjs "build/$TARGET" "$TARGET"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plus-${{ matrix.target }}
+          if-no-files-found: error
+          path: |
+            build/${{ matrix.target }}/update-*.json
+            build/${{ matrix.target }}/*.tar.gz
+            build/${{ matrix.target }}/*-setup-*.exe
+            build/${{ matrix.target }}/*.dmg
+            build/${{ matrix.target }}/*.deb
+            build/${{ matrix.target }}/*.rpm
+            build/${{ matrix.target }}/install.sh
+            build/${{ matrix.target }}/install.ps1
