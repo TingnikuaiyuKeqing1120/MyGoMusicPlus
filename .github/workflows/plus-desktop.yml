@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
       - name: Test the player
@@ -64,11 +64,11 @@ jobs:
           app="build/$TARGET/MyGo Music Plus.app"
           arch=arm64
           if [[ "$TARGET" == darwin-amd64 ]]; then arch=x86_64; fi
-          lipo -verify_arch "$arch" "$app/Contents/MacOS/MyGo Music Plus"
+          lipo "$app/Contents/MacOS/MyGo Music Plus" -verify_arch "$arch"
           codesign --verify --deep --strict "$app"
       - name: Install the signed update in a disposable player directory
         run: node scripts/release/test-desktop-update.mjs "build/$TARGET" "$TARGET"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: plus-${{ matrix.target }}
           if-no-files-found: error
