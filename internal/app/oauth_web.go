@@ -26,6 +26,11 @@ func useDeviceFlow() {
 	if !bridge.Truthy() || bridge.Get("githubDeviceStart").Type() != js.TypeFunction {
 		return
 	}
+	if bridge.Get("openGitHubDevicePage").Type() == js.TypeFunction {
+		openGitHubDevicePage = func(preferApp bool) bool {
+			return bridge.Call("openGitHubDevicePage", preferApp).Bool()
+		}
+	}
 	js.Global().Set("__mygoDeviceResult", js.FuncOf(func(this js.Value, args []js.Value) any {
 		if len(args) < 2 {
 			return nil

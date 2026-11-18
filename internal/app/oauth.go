@@ -19,6 +19,9 @@ var (
 	devicePoll  func(clientID, deviceCode string) (string, error)
 )
 
+// openGitHubDevicePage lets the Android shell choose GitHub Mobile or a browser.
+var openGitHubDevicePage func(preferApp bool) bool
+
 // deviceFlow is a GitHub sign-in on its way: the code the listener enters at
 // GitHub's device page, and the asking for the token once they have.
 type deviceFlow struct {

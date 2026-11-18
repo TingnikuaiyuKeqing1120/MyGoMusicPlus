@@ -1,5 +1,6 @@
 package com.mygomusic.plus
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -40,6 +41,29 @@ class Bridge(private val ctx: Context, private val chooseMusicFolder: () -> Unit
     @JavascriptInterface
     fun openExternal(url: String) {
         ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    @JavascriptInterface
+    fun openGitHubDevicePage(preferApp: Boolean): Boolean {
+        val page = Uri.parse("https://github.com/login/device")
+        val view = Intent(Intent.ACTION_VIEW, page)
+            .addCategory(Intent.CATEGORY_BROWSABLE)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (preferApp && tryOpen(Intent(view).setPackage("com.github.android"))) return true
+
+        // Resolve through browser apps so the fallback also works if GitHub
+        // Mobile accepts the link but doesn't show the device form.
+        view.selector = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_BROWSER)
+        return tryOpen(view)
+    }
+
+    private fun tryOpen(intent: Intent): Boolean = try {
+        ctx.startActivity(intent)
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
+    } catch (_: SecurityException) {
+        false
     }
 
     @JavascriptInterface

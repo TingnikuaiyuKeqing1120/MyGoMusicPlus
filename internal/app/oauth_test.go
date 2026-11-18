@@ -2,8 +2,48 @@ package app
 
 import (
 	"errors"
+	"os"
+	"slices"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
+
+	"mygo-music/internal/i18n"
 )
+
+// The phone's sync page keeps both authorization routes and cancellation reachable.
+func TestDeviceFlowSyncPage(t *testing.T) {
+	wasWeb, wasStart, wasOpen := onWeb, deviceStart, openGitHubDevicePage
+	lang := i18n.Language()
+	t.Cleanup(func() {
+		onWeb, deviceStart, openGitHubDevicePage = wasWeb, wasStart, wasOpen
+		i18n.SetLanguage(lang)
+	})
+	onWeb = true
+	i18n.SetLanguage("zh-CN")
+	deviceStart = func(string, string) (string, error) { return "", errors.New("unexpected start") }
+	var routes []bool
+	openGitHubDevicePage = func(preferApp bool) bool { routes = append(routes, preferApp); return true }
+
+	a := newTestApp()
+	a.settingsWeb, a.settingsPage = true, "sync"
+	a.syncer.device = &deviceFlow{userCode: "TEST-CODE", uri: "https://github.com/login/device"}
+	tt := ui.NewTester(a.view, 320, 720)
+	tt.SetDark(true)
+	settled(tt)
+	if dir := os.Getenv("MM_FRAMES"); dir != "" {
+		saveFrame(t, dir, "github-device-sync-narrow.png", tt.Image())
+	}
+	for _, name := range []string{"Open GitHub's Device Page", "Open in Browser", "Cancel"} {
+		if err := tt.Click(T(name)); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	if !slices.Equal(routes, []bool{true, false}) || a.syncer.device != nil {
+		t.Fatalf("opened routes %v, device flow still active: %t", routes, a.syncer.device != nil)
+	}
+}
 
 // The device flow signs in to GitHub without a token written by hand: the
 // code shows, the asking waits while GitHub says pending, and the token

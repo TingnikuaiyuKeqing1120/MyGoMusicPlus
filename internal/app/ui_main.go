@@ -19,6 +19,12 @@ func (a *app) view(c *ui.Context) {
 	useAccent(&t, p)
 	t.Selection = p.accent.Alpha(0.3)
 	c.SetTheme(&t)
+	defer func() {
+		if a.toast != "" {
+			c.Toast(a.toast)
+			a.toast = ""
+		}
+	}()
 
 	if onWeb && a.settingsWeb {
 		a.settingsView(c)
@@ -98,10 +104,6 @@ func (a *app) view(c *ui.Context) {
 	a.signInDialog(c, a.pal, false)
 	a.playlistNameDialog(c)
 	a.deletePlaylistDialog(c)
-	if a.toast != "" {
-		c.Toast(a.toast)
-		a.toast = ""
-	}
 	a.askLikes()
 	a.syncWindows()
 }

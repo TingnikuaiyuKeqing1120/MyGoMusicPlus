@@ -379,7 +379,7 @@ func (a *app) settingsGroup(c *ui.Context, p palette, sec settingsSection, title
 				return
 			}
 			var layout ui.Element
-			if sec.id == "updates" && narrow(c) {
+			if (sec.id == "updates" || sec.id == "sync") && narrow(c) {
 				layout = ui.Column(c).Gap(8).AlignItems(ui.Start)
 			} else {
 				layout = ui.Row(c).Gap(16).AlignItems(ui.Center)

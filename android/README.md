@@ -48,8 +48,9 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
   断网时回退 App 内置副本。Android 由原生壳下载 GitHub 发布附件和源码 ZIP。
 - GitHub 私有仓库同步（设置 → 同步）：令牌 + 仓库名，独立开关同步设置/歌单/插件，
   增量 merge + last-write-wins，定期 pull + 改动 debounce push。
-  令牌可经 OAuth 设备流获取（设置 → 同步 → 通过 GitHub 登录，显示设备码，
-  授权后自动填入；OAuth App client ID 见 `internal/app/oauth.go`）。
+  令牌可经 OAuth 设备流获取（设置 → 同步 → 通过 GitHub 登录，显示设备码）。设备页优先交给
+  支持该链接的 GitHub App，也可以直接用浏览器打开。授权后返回同步页，令牌会自动填入。
+  OAuth App client ID 见 `internal/app/oauth.go`。
 - App 自动更新（设置 → 更新）：每天检查 `TingnikuaiyuKeqing1120/MyGoMusicPlus`
   的 releases。Android 可选择 GitHub 官方源或 GH-Proxy 国内镜像下载 APK，版本和校验值均从 GitHub 获取。
   下载完成后 APK 保存在应用文件目录，取消安装或重开应用后可在更新页点「安装已下载的版本」。
