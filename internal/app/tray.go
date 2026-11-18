@@ -25,6 +25,11 @@ var trayTemplate []byte
 //go:embed tray/tray.png
 var trayColor []byte
 
+// trayPlus is the 32-pixel rendering of icon/plus-rain-cat.svg.
+//
+//go:embed tray/plus-rain-cat.png
+var trayPlus []byte
+
 // appIcons are where the app's icon shows on macOS, with their names: the
 // Dock and the menu bar, the Dock alone, or the menu bar alone.
 var appIcons = []struct{ id, label string }{
@@ -84,6 +89,8 @@ func (a *app) applyTray() {
 		icon, template := trayColor, false
 		if runtime.GOOS == "darwin" {
 			icon, template = trayTemplate, true
+		} else if runtime.GOOS == "windows" && mygo.App.Name() == "MyGo Music Plus" {
+			icon = trayPlus
 		}
 		t, err := mygo.NewTray(mygo.TrayOptions{ID: "mygo-music", Icon: icon, IconIsTemplate: template, ToolTip: mygo.App.Name(), Menu: a.trayMenu()})
 		if err != nil {

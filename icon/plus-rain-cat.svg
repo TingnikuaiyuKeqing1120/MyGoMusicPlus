@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">MyGo Music Plus</title>
+  <desc id="desc">A black cat in headphones holds a white umbrella and reaches out to catch a falling musical note.</desc>
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1">
+      <stop stop-color="#90949a"/>
+      <stop offset=".58" stop-color="#676b73"/>
+      <stop offset="1" stop-color="#4a4d54"/>
+    </linearGradient>
+    <path id="quaver" d="M3 0h1v1h2v1h1v2H6V3H5V2H4v5H3v1H0V6h1V5h2z"/>
+    <path id="paired-notes" d="M2 2h3V1h3V0h1v7H8v1H6V6h2V2H6v1H3v6H2v1H0V8h2z"/>
+    <path id="rain" d="M3 0h1v3H3zM2 4h1v2H2zM1 8h1v2H1zM0 12h1v1H0z"/>
+  </defs>
+
+  <rect x="2" y="2" width="124" height="124" rx="24" fill="url(#sky)"/>
+  <g id="rain-shower" fill="#d2d7db" opacity=".46">
+    <use href="#rain" x="15" y="15"/><use href="#rain" x="39" y="7"/>
+    <use href="#rain" x="68" y="4"/><use href="#rain" x="99" y="7"/>
+    <use href="#rain" x="110" y="29"/><use href="#rain" x="21" y="36"/>
+    <use href="#rain" x="8" y="51"/><use href="#rain" x="114" y="64"/>
+    <use href="#rain" x="19" y="86"/><use href="#rain" x="107" y="91"/>
+    <path opacity=".68" d="M47 15h1v2h-1zM46 19h1v1h-1zM11 73h1v3h-1zM10 78h1v1h-1zM118 38h1v2h-1zM117 42h1v1h-1zM36 89h1v2h-1zM35 93h1v1h-1z"/>
+  </g>
+  <g id="distant-music" fill="#d5dade">
+    <use href="#quaver" transform="translate(27 15) scale(.8)" opacity=".78"/>
+    <use href="#paired-notes" transform="translate(52 8) scale(.72)" opacity=".62"/>
+    <use href="#quaver" transform="translate(91 17) scale(.75)" opacity=".72"/>
+    <use href="#paired-notes" transform="translate(13 44) scale(.7)" opacity=".65"/>
+    <use href="#quaver" transform="translate(17 76) scale(.64)" opacity=".58"/>
+    <use href="#quaver" transform="translate(109 53) scale(.8)" opacity=".72"/>
+    <use href="#paired-notes" transform="translate(100 78) scale(.73)" opacity=".63"/>
+    <use href="#quaver" transform="translate(26 94) scale(.72)" opacity=".68"/>
+  </g>
+
+  <g id="puddles">
+    <path fill="#41454d" d="M31 107h8v-1h15v-1h29v1h10v1h5v2H87v1H52v-1H36v-1h-5z"/>
+    <path fill="#9b9fa4" opacity=".57" d="M14 102h5v1h-5zM20 104h7v1h-7zM100 103h6v1h-6zM108 102h3v1h-3z"/>
+  </g>
+
+  <g id="sheltering-cat" transform="translate(-9 -6) scale(1.1)">
+    <g id="umbrella">
+      <!-- Back edge and the ribs seen from below the tilted canopy. -->
+      <path fill="#74787f" d="M40 35h16v2h13v5h12v6h11v6h8v4h4v5h2v2h-2v-2H90v1h-2v-2h-7v-2h-6v-2h-7v-2h-6v-3h-6v-3h-5v-4h-4v-4h-4v-3h-3z"/>
+      <path fill="#a4a8ad" d="M41 35h16v2h8v6h-4v4h-3v3h-3v-2h-4v-4h-4v-3h-3v-3h-3z"/>
+      <path fill="#92969c" d="M59 39h8v2h9v3h7v4h5v5h1v8h-7v-2h-7v-2h-7v-2h-7v-2h-5v-3h2v-4h2v-4h-1z"/>
+      <path fill="#a0a4a9" d="M90 52h7v2h4v3h2v4h1v1H90z"/>
+      <!-- Three panels share one stepped lower edge. -->
+      <path fill="#62666d" d="M39 36v-1h1v-2h3v-2h3v-2h4v-2h4v-2h5v-1h6v-1h10v1h6v2h3v-3h1v-2h2v4h-1v3h2v1h2v2h3v2h2v2h2v2h2v3h2v3h2v4h1v4h1v5h1v8h-1v-2h-2v-3h-2v-2h-2v-2h-3v-1h-6v1h-2v-3h-2v-2h-3v-2h-4v-2h-4v-1h-4v-2h-5v-1h-6v1h-2v-2h-2v-2h-3v-1H41v1h-2z"/>
+      <path fill="#2a2d32" d="M83 26h1v-3h1v-2h2v3h-1v4h-3z"/>
+      <path fill="#eaedef" d="M40 35v-1h3v-2h3v-2h4v-2h4v-2h5v-1h6v-1h10v1h6v1h2v1h-7v1h-4v2h-3v2h-3v2h-2v2h-2v2h-2v1h-1v-1h-2v-2h-3v-1z"/>
+      <path fill="#c0c5ca" d="M59 39h1v-2h2v-2h2v-2h2v-2h3v-2h3v-2h4v-1h7v2h-6v1h-4v2h-3v2h-3v2h-2v2h-2v2h-2v1h-2z"/>
+      <path fill="#fafaf6" d="M61 39v-1h2v-2h2v-2h2v-2h3v-2h3v-1h4v-1h7v1h2v2h2v3h1v3h1v5h1v7h-1v3h-1v-1h-2v-2h-3v-2h-4v-2h-4v-1h-4v-2h-5v-1h-6z"/>
+      <path fill="#b7bcc1" d="M85 28h2v3h2v3h1v3h1v5h1v8h-1v3h-2v-2h1v-9h-1v-5h-1v-3h-1v-3h-2z"/>
+      <path fill="#f1f3f1" d="M87 29h2v2h3v2h2v2h2v2h2v3h2v3h2v4h1v4h1v5h1v6h-1v-2h-2v-3h-2v-2h-3v-2h-6v-3h1v-8h-1v-5h-1v-3h-1v-3h-2z"/>
+      <path fill="#bac0c4" d="M53 29h1v1h1v-1h1v-2h1v3h-1v1h-2v-1h-1zM96 45h1v1h1v-2h1v3h-2v-1h-1z"/>
+      <path fill="#2c3037" d="M75 44h2v3h-1v3h-2v4h-2v4h-2v4h-2v4h-3v-3h2v-4h2v-4h2v-4h2v-4h2z"/>
+    </g>
+
+    <g id="cat">
+      <!-- Sitting haunch, two feet and a tail curling back towards the body. -->
+      <path fill="#14171d" d="M53 66h15v1h4v3h3v2h3v3h3v3h2v4h2v5h1v9h4v-1h2v-3h1v-5h-1v-2h-2v-5h1v-1h3v1h2v2h1v3h1v8h-1v4h-2v3h-3v2h-5v1H69v1H55v-1h-2v-3h1v-3h1v-5h-1v-6h-2v-6h-1V69h2z"/>
+      <path fill="#393d43" d="M65 101h1v-2h1V89h1v-2h2v-1h4v1h-3v1h-2v2h-1v9h2v1h-4v3h-1z"/>
+      <!-- The far paw opens beneath the falling note. -->
+      <path fill="#14171d" d="M57 69v9h-3v3h-4v-1h-4v-2h-4v-2h-3v-2h-3v-2h-2v-3h1v-2h2v-1h2v2h2v2h2v1h5v-1h4v-1z"/>
+      <path fill="#545861" d="M35 69h1v2h-1zM37 67h1v2h-1zM37 70h2v-1h1v3h-3z"/>
+      <!-- Upright ears and a quiet, square-eyed face. -->
+      <path fill="#12151a" d="M43 44h3v1h2v1h3v-1h9v1h2v-2h1v-1h3v1h1v1h1v6h1v4h1v8h-1v3h-2v3h-3v2h-5v2h-6v-1h-3v-2h-3v-2h-2v-2h-2v-1h-2v-1h2v-1h-2v-1h1v-8h1v-4z"/>
+      <path fill="#12151a" d="M43 42h2v1h2v1h1v1h2v2h-7zM61 46v-2h2v-1h1v-2h2v1h1v2h1v5h-4v-3z"/>
+      <path fill="#62666c" d="M44 44h1v1h1v1h1v1h-2v2h-1zM65 43h1v2h1v2h-1v-1h-2v-2h1z"/>
+      <path fill="#f5f5ee" d="M45 58h3v3h-3zM55 58h3v3h-3z"/>
+      <!-- Metal headband and fabric ear cushions. -->
+      <path fill="#262930" d="M41 55h1v-4h2v-3h2v-2h3v-2h13v1h3v2h2v2h2v3h2v2h1v8h-1v2h-2v1h-4v-1h-2v-2h-1v-7h1v-2h2v-1h1v-1h-1v-2h-2v-2h-3v-1h-9v1h-3v1h-2v3h-2v3h-1v6h-2z"/>
+      <path fill="#adb2b8" d="M42 55h1v-4h2v-3h2v-2h3v-1h11v1H51v1h-3v2h-2v3h-2v3h-1v6h-1z"/>
+      <path fill="#696f78" d="M61 46h2v1h2v2h2v2h1v2h-2v-2h-1v-2h-2v-2h-2z"/>
+      <path fill="#9a9fa6" d="M64 55h1v-2h3v1h-2v2h-1v6h1v1h-2z"/>
+      <path fill="#626873" d="M66 55h4v1h1v5h-1v2h-4v-1h-1v-6h1z"/>
+      <path fill="#484d56" d="M69 56h1v5h-1v1h-2v-1h2z"/>
+    </g>
+
+    <g id="handle">
+      <path fill="#9da3aa" d="M68 65h1v2h-1v3h-2v4h-1v3h-2v4h-1v4h-2v2h-1v2h-5v-1h-2v-2h-1v-4h2v3h1v1h4v-2h2v-4h1v-4h2v-4h2v-4h2z"/>
+      <path fill="#e5e7e4" d="M51 82h2v3h1v1h4v-1h2v-3h1v4h-1v2h-2v1h-4v-1h-2v-2h-1z"/>
+      <path fill="#0e1116" d="M59 79h1v-1h2v-1h6v-1h2v-1h2v1h1v5h-2v2h-3v1h-6v-1h-3v-1h-1v-2h1z"/>
+      <path fill="#444950" d="M59 81h2v1h7v-1h3v-2h1v3h-2v1h-2v1h-6v-1h-3z"/>
+    </g>
+  </g>
+
+  <!-- The nearest note falls just outside the umbrella, over the open paw. -->
+  <use href="#quaver" x="26" y="57" fill="#fff9e9"/>
+</svg>
