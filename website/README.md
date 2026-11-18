@@ -1,6 +1,8 @@
 # Website
 
-The home page of MyGo Music, written with TanStack Start and Solid. It's prerendered into static files at build time and deployed to Cloudflare (Workers static assets, no Worker script).
+This is the upstream MyGo Music website. Its download page reads releases from `egoist/mygo-music`. Windows Plus and Android packages are published in the [Plus releases](https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/releases/latest).
+
+The site uses TanStack Start and Solid. It is prerendered at build time and deployed to Cloudflare Workers static assets.
 
 ```bash
 bun install          # at the root of the repository

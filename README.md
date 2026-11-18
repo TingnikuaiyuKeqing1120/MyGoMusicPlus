@@ -1,24 +1,30 @@
-# MyGo Music
+# MyGo Music Plus
 
-A native desktop music player written in Go with [MyGo](https://github.com/egoist/mygo), no WebView. It plays your local files out of the box, and everything else comes from plugins.
+MyGo Music Plus plays local music and plugin sources. The Windows player has a native Go UI built with MyGo. Android runs the same player as WebAssembly in a Kotlin WebView shell. The Web player can also be built for a browser. [MyGo framework](https://github.com/egoist/mygo)
+
+Plus releases include a Windows x64 installer and an Android APK. On Windows, run the new installer to upgrade. On Android, Settings → Updates checks for a release and opens the system installer. [Download MyGo Music Plus](https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/releases/latest)
 
 ## Features
 
 - Local files (MP3, FLAC, Ogg Vorbis, WAV, and ALAC, FLAC or AAC in .m4a and .aac) with tags, covers and `.lrc` lyrics
 - Playlists, liked songs, search, albums and artists
 - Now Playing with lyric stage styles, cover wall, queue, shuffle and repeat
-- Notch player on macOS, tray, media keys
+- Desktop tray and media keys, Android media notification and lock-screen controls
 - Audio cache, fades on pause and seek, loudness normalization
 - Session restore
-- Podcast captions, written down on the device as episodes play
+- On-device podcast transcription on supported native desktops
 - English and Simplified Chinese
 - Plugins can add accounts, catalogs, podcasts, stations, comments and pages of their own
+- Install GD Music from Settings → Plugins. Plus fetches the plugin from GitHub and offers its bundled copy if the fetch fails.
+- Select multiple tracks to add, remove or download where the source supports it. Drag rows to reorder an editable playlist or drop them on a sidebar playlist.
+- Queue downloads at a chosen quality. Pause and resume within the session. A server that supports HTTP Range can continue from the saved bytes. The Downloaded page keeps completed tracks for local playback and deletion. Desktop users can also reveal the saved file.
+- Sync preferences, the built-in local source's playlists and likes, and installed plugins through a GitHub repository. Each category has its own switch. Use GitHub device sign-in on desktop or Android, or enter a token in a browser. Plus creates new sync repositories as private. If you supply an existing repository, check its visibility yourself. Plugin sync includes plugin settings, which can contain credentials.
 
 ## Build
 
 ```bash
-go tool mygo dev     # run in development
-go tool mygo build   # package into build/
+go tool mygo dev     # live reload with the MyGo Music Dev identity
+go tool mygo build   # package with the upstream identity by default
 go test ./internal/...
 ```
 
@@ -43,18 +49,15 @@ Open `build/windows-plus-dev/windows-amd64/MyGo Music Plus Dev.exe`. The app
 keeps its profile in `%APPDATA%\MyGo Music Plus Dev` and registers
 `mygo-music-plus-dev://` at startup. Close it before rebuilding at the same path.
 
+For a standalone Web build, run `node scripts/build-web.mjs` and then `node scripts/web-shell.mjs`. Serve `build/web-shell/` over HTTPS or localhost. With OPFS available, the player keeps files between sessions. Without it, files stay in memory for the session. The Android build packages this same directory. [Android build instructions](android/README.md#构建步骤)
+
 ## Podcast captions
 
-Episodes are written down on the device as they play, with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and Qwen3-ASR, which the app downloads when the listener asks for them. The libraries come from this repository's `sherpa-onnx-<version>` prerelease, which only changes with that version:
-
-```bash
-go run ./scripts/sherpa -sign "Developer ID Application: …"
-gh release create sherpa-onnx-2.0.1 --prerelease --latest=false build/sherpa/*
-```
+On supported native desktops, the player transcribes episodes with sherpa-onnx and Qwen3-ASR, downloading the required files on request. Web and Android hide the transcription controls. Native libraries come from the upstream MyGo Music prerelease. [Library release](https://github.com/egoist/mygo-music/releases/tag/sherpa-onnx-2.0.1)
 
 ## Plugins
 
-A plugin is a folder in the app's `plugins` directory (Settings > Plugins > + > Show Plugins Folder) with a `plugin.json` and one JavaScript or TypeScript file. Install one with the + in Settings > Plugins from GitHub, by its repository or its address, or from its folder or a zip of it on this computer, or drop the folder in by hand. Remove one from its ⋯ menu there. There's nothing to build, and the same plugin runs on every platform. [`examples/demo-plugin`](examples/demo-plugin) does everything a plugin can with made-up data: copy it to start.
+A plugin contains a `plugin.json` and a JavaScript or TypeScript entry point. In Settings → Plugins, use + to install from GitHub and the ⋯ menu to remove a plugin. Desktop also supports installation from a local folder or ZIP and can open the plugins folder. Plugins that launch a helper need a binary for the target desktop platform. [Example plugin](examples/demo-plugin)
 
 ```json
 {
@@ -189,7 +192,7 @@ Put it in a public GitHub repository, with `plugin.json` at the top. The app tak
 
 Add the topic `mygo-music-plugin` to the repository to have it listed on the [plugins page](https://mygo-music.egoist.dev/plugins).
 
-Link to `mygo-music://install-plugin?repo=owner/repo` for an install button: it opens the app, which downloads the plugin and asks the listener before installing it. The development app (`mygo dev`) answers `mygo-music-dev://` instead.
+An install link opens the player and asks the listener to confirm the plugin. For Windows Plus, use `mygo-music-plus://install-plugin?repo=owner/repo`. Use the same path and query with `mygo-music://` for Android or the upstream desktop app, `mygo-music-plus-dev://` for the standalone Windows Plus Dev build, and `mygo-music-dev://` for the upstream development app.
 
 ### What a plugin can reach
 

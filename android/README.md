@@ -1,7 +1,7 @@
 # MyGo Music++ · Android 壳
 
 Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复用全部现有 UI 与 Go 核心。
-已用本机工具链编译出可上手测试的 debug APK；真机播放/后台行为仍待实测。
+Plus Release 提供可覆盖升级的 Android APK。文末列出模拟器已验证的范围与仍待真机确认的行为。
 
 ## 产物
 - `android/app/build/outputs/apk/debug/app-debug.apk`（构建输出）
@@ -10,10 +10,10 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
 
 ## 组成
 - `MainActivity`：WebView 经 `WebViewAssetLoader` 从虚拟 https 域
-  （`appassets.androidplatform.net/assets/web/`）加载壳（安全上下文，fetch/OPFS 可用）；
+  （`appassets.androidplatform.net/assets/web/`）加载壳。支持 OPFS 的 WebView 可跨会话保存数据，OPFS 不可用时使用会话内存。
   JS 桥 `AndroidBridge`；系统返回键转给 web 的 `__mygoBack`（`back_web.go` 按上下文
   关对话框/抽屉/设置页/播放页/回退，无处可退才退出）；
-  SAF 文件选择与下载导出（`ACTION_CREATE_DOCUMENT`）；`mygo-music://` App Links 转给 web
+  WebView 网页下载可通过系统文件选择器导出（`ACTION_CREATE_DOCUMENT`）。播放器内下载的歌曲保存在应用自己的 Downloads 目录，可从「已下载」播放或删除。`mygo-music://` 自定义协议链接转给 web
   （`window.__mygoLink` + `mygo-link` 事件，web 侧 `links_web.go` 接收）。
 - `PlaybackService`：`mediaPlayback` 前台服务 + 媒体通知 + `MediaSessionCompat` + 音频焦点；
   通知/锁屏/耳机键经 `WebLink` 调 web 的 mediaSession handlers；焦点丢失自动暂停。
@@ -46,8 +46,7 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
 - GD 音乐台内置一键安装（设置 → 插件 → 安装；或 + 菜单）：优先拉取仓库
   `TingnikuaiyuKeqing1120/gd-music-plugin` 的最新 release（记录 Origin，可检查更新），
   断网时回退 App 内置副本。Android 由原生壳下载 GitHub 发布附件和源码 ZIP。
-- GitHub 私有仓库同步（设置 → 同步）：令牌 + 仓库名，独立开关同步设置/歌单/插件，
-  增量 merge + last-write-wins，定期 pull + 改动 debounce push。
+- 在「设置 → 同步」中，可分别启用偏好设置、本地音源的歌单与喜欢、插件及其配置。新建同步仓库默认为私有。复用已有仓库时，请先确认仓库可见性。启用插件同步会上传插件设置，其中可能含有凭据。
   令牌可经 OAuth 设备流获取（设置 → 同步 → 通过 GitHub 登录，显示设备码）。设备页优先交给
   支持该链接的 GitHub App，也可以直接用浏览器打开。授权后返回同步页，令牌会自动填入。
   OAuth App client ID 见 `internal/app/oauth.go`。
@@ -68,8 +67,8 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
 3. 按[发版说明](../RELEASING.md#mygo-music-plus)把 APK 和本次的 Windows 安装包放进同一个 Release。
    旧版 App 的每日检查会发现新版，下载后交给系统安装器升级。
 
-## 已知待验证 / 待办（真机）
-- 后台/锁屏续播、音频焦点、耳机键（P3）；Android 14+ 后台启动前台服务的限制。
-- OPFS 在目标 WebView 版本的可用性与配额（缓存上限 CacheMB）。
-- 通知图标暂用系统 `ic_media_play`，后续换品牌图标。
-- OAuth 设备流与 APK 自动更新的真机交互（安装未知应用授权提示）。
+## 验证范围
+
+模拟器已验证授权链接的应用选择与浏览器回退，以及更新包在取消安装、冷启动后保留，断网时可再次打开系统安装器。启动器使用黑猫图标，播放通知使用系统 `ic_media_play`。
+
+真机仍待验证后台与锁屏续播、音频焦点、耳机键、Android 14+ 后台启动前台服务的限制、不同 WebView 的 OPFS 持久性与配额，以及真实账号授权和系统安装权限确认后的完整升级流程。`CacheMB` 控制播放器的音频缓存，OPFS 配额由系统和 WebView 决定。

@@ -27,6 +27,17 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 - Add Music Folder opens Android's folder picker and keeps read access for scanning and playback. Browsers with directory access can select folders as well.
 - Playing a local file on the Web no longer blocks the interface while updating download progress.
 
+## [0.2.1] - 2026-11-18
+
+- Fixed plugin installation and discovery in Web and Android builds when reading directories.
+- The Web player reports its packaged version when checking for updates. Android shows download progress for APK updates.
+
+## [0.2.0] - 2026-11-17
+
+- The first Plus release shipped an Android APK with a narrow-screen layout, system back navigation and media controls. The Web player gained persistent storage through OPFS.
+- Added GD Music installation with a bundled fallback, GitHub repository sync and Android APK update checks.
+- Added multi-track playlist actions, drag-and-drop, queued downloads with pause and resume, and local playback from the Downloaded page.
+
 ## [0.1.25] - 2026-11-14
 
 ### Added
@@ -274,6 +285,8 @@ The first release: a native music player that plays your local files and gets ev
 
 [0.2.3]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/releases/tag/v0.2.0
 [0.1.25]: https://github.com/egoist/mygo-music/compare/v0.1.24...v0.1.25
 [0.1.24]: https://github.com/egoist/mygo-music/compare/v0.1.23...v0.1.24
 [0.1.23]: https://github.com/egoist/mygo-music/compare/v0.1.22...v0.1.23

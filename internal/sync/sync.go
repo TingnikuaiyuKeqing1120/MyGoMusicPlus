@@ -1,7 +1,7 @@
 // Package sync keeps the listener's data the same across their devices,
 // through a private GitHub repository: what changed here is pushed, what
 // changed elsewhere is pulled, each file taken from whichever side wrote it
-// last. Playlists merge by name rather than one side replacing the other.
+// last. On pull, local-library playlists merge by ID and likes are combined.
 package sync
 
 import (

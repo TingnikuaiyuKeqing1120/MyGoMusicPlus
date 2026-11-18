@@ -13,7 +13,7 @@ The Plus fork publishes a Windows x64 installer and an Android APK from the same
 
 Releases are built by [`.github/workflows/release.yml`](.github/workflows/release.yml). Installed apps update to a release once it's published.
 
-## Cut a release
+### Cut an upstream release
 
 1. Make sure `main` is clean and the tests pass:
 
@@ -53,7 +53,7 @@ Releases are built by [`.github/workflows/release.yml`](.github/workflows/releas
 
    This runs `vite build && wrangler deploy` in `website/`, and needs Wrangler signed in to the Cloudflare account (`bunx wrangler login`).
 
-## Secrets
+### Upstream workflow secrets
 
 The workflow needs these repository secrets:
 
@@ -63,6 +63,6 @@ The workflow needs these repository secrets:
 | `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` | Notarizing the macOS disk images |
 | `MYGO_UPDATER_PRIVATE_KEY` | Signing the updates; its public key is `updates.publicKey` in `mygo.config.ts` |
 
-## Podcast caption libraries
+### Upstream podcast caption libraries
 
 The sherpa-onnx libraries are released separately, as the `sherpa-onnx-<version>` prerelease, and only change when that version changes. See the README.
