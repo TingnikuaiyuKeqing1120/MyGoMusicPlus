@@ -1,5 +1,16 @@
 # Releasing
 
+## MyGo Music Plus
+
+The Plus fork publishes a Windows x64 installer and an Android APK from the same tag.
+
+1. Set the version in `mygo.config.ts` and in `android/app/build.gradle.kts`. Increment Android's `versionCode` and add the release to `CHANGELOG.md`.
+2. Run the tests and build the Windows Plus package following [the build instructions](README.md#build). Build the APK following [the Android build instructions](android/README.md#构建步骤). Use the same APK signing key as the previous Plus release so installed copies can upgrade.
+3. Commit and push `main` and the new version tag to the Plus fork. Create a draft GitHub Release from the tag and upload the Windows setup executable and the Android APK.
+4. Check both downloads and publish the release. Android checks the Plus release page for APK updates. Windows users run the new setup executable to upgrade.
+
+## Upstream MyGo Music
+
 Releases are built by [`.github/workflows/release.yml`](.github/workflows/release.yml). Installed apps update to a release once it's published.
 
 ## Cut a release

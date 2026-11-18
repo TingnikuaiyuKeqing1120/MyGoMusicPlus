@@ -2,6 +2,20 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.2] - 2026-11-18
+
+### Added
+
+- MyGo Music Plus has a Windows x64 installer with its own data folder and link scheme. The desktop app can start GitHub device sign-in for sync.
+- On narrow layouts, switch enabled sources from the home header and go back through Settings with the back button.
+
+### Fixed
+
+- Installed plugins stay available after restarting the Android app or reopening the Web app. Android can download GitHub plugin archives through the native shell.
+- The Android app updates its appearance when the system theme changes.
+- Add Music Folder opens Android's folder picker and keeps read access for scanning and playback. Browsers with directory access can select folders as well.
+- Playing a local file on the Web no longer blocks the interface while updating download progress.
+
 ## [0.1.25] - 2026-11-14
 
 ### Added
@@ -247,6 +261,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.2.2]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.1...v0.2.2
 [0.1.25]: https://github.com/egoist/mygo-music/compare/v0.1.24...v0.1.25
 [0.1.24]: https://github.com/egoist/mygo-music/compare/v0.1.23...v0.1.24
 [0.1.23]: https://github.com/egoist/mygo-music/compare/v0.1.22...v0.1.23

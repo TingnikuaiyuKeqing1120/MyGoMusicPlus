@@ -17,6 +17,8 @@ permissions:
 
 jobs:
   draft-release:
+    # The Plus fork publishes its Windows and Android packages separately.
+    if: github.repository != 'TingnikuaiyuKeqing1120/MyGoMusicPlus'
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}

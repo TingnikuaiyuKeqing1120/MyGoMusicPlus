@@ -63,8 +63,8 @@ Kotlin WebView 壳承载 `build/web-shell` 的 mygo-web 产物（wasm），复�
 1. 同步改两处版本：`mygo.config.ts` 的 `version`、`android/app/build.gradle.kts` 的
    `versionName` 与 `versionCode`（code 只升不降，系统安装器拒绝更低的 code）。
 2. 按上述步骤构建，复制 APK 到仓库根。
-3. 提交推送后 `gh release create v<版本> MyGoMusicPlus-debug.apk#MyGoMusicPlus-<版本>.apk`；
-   旧版 App 的每日检查会发现新版，下载经系统安装器升级。
+3. 按[发版说明](../RELEASING.md#mygo-music-plus)把 APK 和本次的 Windows 安装包放进同一个 Release。
+   旧版 App 的每日检查会发现新版，下载后交给系统安装器升级。
 
 ## 已知待验证 / 待办（真机）
 - 后台/锁屏续播、音频焦点、耳机键（P3）；Android 14+ 后台启动前台服务的限制。

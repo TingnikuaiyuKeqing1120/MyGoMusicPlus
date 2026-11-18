@@ -7,7 +7,7 @@ export default ({ command }: { command: string }) => {
     name: plusDesktop ? "MyGo Music Plus" : "MyGo Music",
     identifier: plusDesktop ? "com.mygomusic.plus" : "dev.egoist.music",
     slug: plusDesktop ? "mygo-music-plus" : "mygo-music",
-    version: "0.2.1",
+    version: "0.2.2",
     out: "build",
     urlSchemes: [plusDesktop ? "mygo-music-plus" : command === "dev" ? "mygo-music-dev" : "mygo-music"],
     updates: plusDesktop ? undefined : {
