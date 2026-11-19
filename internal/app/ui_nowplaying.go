@@ -866,7 +866,7 @@ func (a *app) queuePane(c *ui.Context) {
 			})
 			ui.Text(c, clock(tr.Length())).FontSize(12).FontFeatures("tnum").TextColor(white.Alpha(0.4))
 		})
-		if row.Clicked() && !tr.Unavailable && !playing {
+		if row.Clicked() && !tr.Unavailable {
 			pl.Jump(i)
 		}
 	}).ObserveInput(touchScrollInput).Grow(1).Padding(8, 0, 40, 0).Gap(2)

@@ -170,7 +170,7 @@ func (a *app) downloadedRow(c *ui.Context, jobs []*dlJob, tracks []music.Track, 
 	play := row.RowClicked()
 	if play {
 		a.trackSel.Clear()
-		a.pl.PlayTrack(tracks, i)
+		a.playTrack(tracks, i)
 	}
 	return play
 }

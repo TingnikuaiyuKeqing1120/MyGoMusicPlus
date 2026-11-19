@@ -20,6 +20,79 @@ func TestPlayEmptyQueue(t *testing.T) {
 	}
 }
 
+// Picking the current song again used to reload it from zero, even when paused.
+func TestPickCurrentTrackContinues(t *testing.T) {
+	for _, paused := range []bool{false, true} {
+		for _, jump := range []bool{false, true} {
+			ch, p := posted()
+			out := p.out
+			out.Pause()
+			out.Seek(45 * time.Second)
+			p.playing = !paused
+			generation := p.gen
+			if jump {
+				p.Jump(0)
+			} else {
+				p.PlayTrack(p.Queue(), 0)
+			}
+			if p.out != out || p.gen != generation || !p.Playing() || p.Position() < 45*time.Second {
+				t.Errorf("paused=%v jump=%v: reloaded=%v generation=%d playing=%v position=%v", paused, jump, p.out != out, p.gen, p.Playing(), p.Position())
+			}
+			if paused && !out.Playing() {
+				t.Error("the paused output did not resume")
+			}
+			p.stop()
+			for len(ch) > 0 {
+				next(t, ch)
+			}
+		}
+	}
+}
+
+// Repeated picks during a load preserve its pending seek and resume intent.
+func TestPickLoadingTrackContinues(t *testing.T) {
+	p := New(func(func()) {})
+	q := []music.Track{{Source: "s", ID: "1"}}
+	p.Cue(q)
+	p.loading, p.playing, p.pending, p.gen = true, false, 45*time.Second, 7
+	p.PlayTrack(q, 0)
+	if !p.loading || !p.playing || p.pending != 45*time.Second || p.gen != 7 {
+		t.Fatalf("load restarted: loading=%v playing=%v pending=%v generation=%d", p.loading, p.playing, p.pending, p.gen)
+	}
+}
+
+// Resuming within the final second used to seek back to the start.
+func TestPickPausedTrackNearEnd(t *testing.T) {
+	_, p := posted()
+	defer p.stop()
+	out := p.out
+	out.Pause()
+	position := out.Duration() - 500*time.Millisecond
+	out.Seek(position)
+	p.playing = false
+	p.PlayTrack(p.Queue(), 0)
+	if p.out != out || !p.Playing() || p.Position() < position {
+		t.Fatalf("near-end resume restarted: position=%v want at least %v", p.Position(), position)
+	}
+}
+
+// A failed current song can still be retried after its source becomes available.
+func TestPickFailedTrackRetries(t *testing.T) {
+	p, ch, q := pickyQueue()
+	defer p.stop()
+	p.PlayTrack(q, 1)
+	settle(t, ch, p)
+	if p.Err() == "" {
+		t.Fatal("the unavailable song did not fail")
+	}
+	p.Source = func(string) music.Source { return picky{ok: map[string]bool{"b": true}} }
+	p.PlayTrack(q, 1)
+	settle(t, ch, p)
+	if p.Err() != "" || !p.Playing() || !p.Ready() || p.Current().ID != "b" {
+		t.Fatalf("retry failed: ready=%v playing=%v err=%q", p.Ready(), p.Playing(), p.Err())
+	}
+}
+
 // silence is a long song of nothing.
 type silence struct{}
 

@@ -238,7 +238,7 @@ func (a *app) episodeRow(c *ui.Context, d *showData, i int, cur *music.Track) {
 		ui.Text(c, clock(time.Duration(tr.Duration)*time.Millisecond)).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
 	})
 	if row.Clicked() {
-		a.pl.PlayTrack(d.episodes, i)
+		a.playTrack(d.episodes, i)
 	}
 }
 

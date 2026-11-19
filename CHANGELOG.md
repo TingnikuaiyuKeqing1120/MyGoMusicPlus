@@ -2,6 +2,10 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+- Picking the current song keeps its position and resumes it if paused, including near the end. Switching between its online entry and saved download carries the position into the selected audio source.
+
 ## [0.4.1] - 2026-11-19
 
 - Phone layouts stack media headers, fit song rows and the bottom player, and provide full-width Now Playing panes. Playlist artwork scrolls away with the list.

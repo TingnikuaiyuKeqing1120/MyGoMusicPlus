@@ -396,7 +396,7 @@ func (a *app) dailyPicks(c *ui.Context, songs []music.Track, ours bool) {
 				})
 			})
 			if row.Clicked() {
-				a.pl.PlayTrack(songs, i)
+				a.playTrack(songs, i)
 			}
 		}
 	})

@@ -185,11 +185,25 @@ func (p *Player) PlayQueue(tracks []music.Track, start int) {
 	p.playQueue(tracks, start, forward)
 }
 
-// PlayTrack replaces the queue with tracks and plays the one at i, the
-// listener's pick: one that can't play stays, saying why, rather than another
-// playing in its place.
+// PlayTrack continues the current track when picked again. A different pick
+// replaces the queue and stays selected if it cannot play, showing why.
 func (p *Player) PlayTrack(tracks []music.Track, i int) {
+	if i >= 0 && i < len(tracks) && p.continueTrack(tracks[i]) {
+		return
+	}
 	p.playQueue(tracks, i, stay)
+}
+
+// continueTrack keeps the loaded sound and position, including a pending load
+// or seek. Failed tracks go through loading again when picked.
+func (p *Player) continueTrack(t music.Track) bool {
+	if p.track == nil || p.track.Source != t.Source || p.track.ID != t.ID || p.err != "" || !p.loading && !p.Ready() {
+		return false
+	}
+	if !p.playing {
+		p.TogglePlay()
+	}
+	return true
 }
 
 // PlayShuffled replaces the queue with tracks in a random order, any of them
@@ -434,6 +448,9 @@ func (p *Player) Prev() {
 func (p *Player) Jump(i int) {
 	for k, v := range p.order {
 		if v == i {
+			if p.continueTrack(p.queue[v]) {
+				return
+			}
 			p.loadSkipping(k, 0, stay, true, 0)
 			return
 		}
@@ -475,9 +492,8 @@ func (p *Player) TogglePlay() {
 	p.playing = true
 	p.record()
 	if !p.seeking && !out.Playing() {
-		if out.Position() >= out.Duration()-time.Second {
-			out.Seek(0)
-		}
+		// The audio player restarts a finished voice itself. A pause near the
+		// end still resumes at its position.
 		out.Play()
 	}
 	p.fade.fade(1, fadeIn, nil)

@@ -547,6 +547,32 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 	})
 }
 
+// playTrack preserves the position when switching between a song's online
+// source and its saved download. Each entry still opens its own audio source.
+func (a *app) playTrack(tracks []music.Track, i int) {
+	var from time.Duration
+	current := a.pl.Current()
+	target := &tracks[i]
+	if current != nil && current.Source != target.Source && a.pl.Err() == "" && (a.pl.Ready() || a.pl.Loading()) {
+		for _, job := range a.downloads.jobs {
+			if job.status != dlDone {
+				continue
+			}
+			saved := downloadedTrack(job)
+			onlineToSaved := sameTrack(current, &job.track) && sameTrack(target, &saved)
+			savedToOnline := sameTrack(current, &saved) && sameTrack(target, &job.track)
+			if onlineToSaved || savedToOnline {
+				from = a.pl.Position()
+				break
+			}
+		}
+	}
+	a.pl.PlayTrack(tracks, i)
+	if from > 0 {
+		a.pl.Seek(from)
+	}
+}
+
 // sameTrack reports whether two tracks are one: IDs are their source's.
 func sameTrack(x, y *music.Track) bool {
 	return x != nil && y != nil && x.ID == y.ID && x.Source == y.Source
@@ -675,7 +701,7 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 		a.trackSel.Clear()
 	}
 	if play && !tr.Unavailable {
-		a.pl.PlayTrack(tracks, i)
+		a.playTrack(tracks, i)
 	}
 	return play
 }

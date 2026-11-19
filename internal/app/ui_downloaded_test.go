@@ -6,9 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/audio"
 	"github.com/egoist/mygo/ui"
 
 	"mygo-music/internal/music"
+	"mygo-music/internal/player"
 )
 
 // downloadedApp is the Downloaded page of two songs saved to files, with the
@@ -61,6 +63,71 @@ func TestDownloadedPageListsAndPlays(t *testing.T) {
 	}
 	if q[0].Source != downloadedID || q[0].ID != a.downloads.savedJobs()[0].path {
 		t.Errorf("playing %+v, want the saved file under the downloaded source", q[0])
+	}
+}
+
+// Clicking a saved copy used to lose the online song's position and restart it.
+func TestDownloadedClickKeepsOnlinePosition(t *testing.T) {
+	a, tt, ch, _, _ := downloadedApp(t)
+	job := a.downloads.jobs[0]
+	job.track.Source = "fake"
+	data, err := os.ReadFile("../player/testdata/seek.mp3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(job.path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.pl = player.New(func(fn func()) { ch <- fn })
+	a.pl.Source = a.sourceByID
+	a.pl.SetVolume(0)
+	defer func() {
+		a.pl.PlayTrack([]music.Track{{Source: "missing", ID: "stop"}}, 0)
+		until(t, ch, func() bool { return !a.pl.Loading() })
+	}()
+	a.pl.Cue([]music.Track{job.track})
+	out := audio.NewPlayer(&silence{})
+	out.SetVolume(0)
+	out.Seek(500 * time.Millisecond)
+	a.pl.Attach(out)
+	defer out.Close()
+	if err := tt.Click(job.track.Name); err != nil {
+		t.Fatal(err)
+	}
+	until(t, ch, func() bool { return !a.pl.Loading() })
+	if !a.pl.Ready() || a.pl.Current().Source != downloadedID || a.pl.Position() < 500*time.Millisecond {
+		t.Fatalf("saved copy did not continue: source=%s position=%v err=%q", a.pl.Current().Source, a.pl.Position(), a.pl.Err())
+	}
+	if path, ok := music.PathOf(a.pl.Stream().URL); !ok || path != job.path {
+		t.Fatalf("the saved entry did not open its local file: %+v", a.pl.Stream())
+	}
+	fake(a).stream = func(string, string) (*music.Stream, error) {
+		return &music.Stream{URL: music.FileURL(job.path), Type: "mp3"}, nil
+	}
+	a.playTrack([]music.Track{job.track}, 0)
+	until(t, ch, func() bool { return !a.pl.Loading() })
+	if !a.pl.Ready() || a.pl.Current().Source != job.track.Source || a.pl.Position() < 500*time.Millisecond {
+		t.Fatalf("online entry did not continue: source=%s position=%v err=%q", a.pl.Current().Source, a.pl.Position(), a.pl.Err())
+	}
+}
+
+// A repeated song-row click keeps playback and its position without reloading.
+func TestTrackRowClickContinuesCurrent(t *testing.T) {
+	a, tt, _, _, _ := batchApp(t)
+	track := a.playlists["42"].Tracks[0]
+	a.pl.Cue([]music.Track{track})
+	out := audio.NewPlayer(&silence{})
+	out.SetVolume(0)
+	out.Seek(45 * time.Second)
+	a.pl.Attach(out)
+	defer out.Close()
+	tt.Frame()
+	if err := tt.Click(track.Name); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.pl.Ready() || a.pl.Loading() || !a.pl.Playing() || a.pl.Position() != 45*time.Second {
+		t.Fatalf("row click restarted playback: ready=%v loading=%v position=%v", a.pl.Ready(), a.pl.Loading(), a.pl.Position())
 	}
 }
 
