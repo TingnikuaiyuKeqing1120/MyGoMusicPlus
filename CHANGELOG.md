@@ -2,6 +2,13 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+- Phone layouts stack media headers, fit song rows and the bottom player, and provide full-width Now Playing panes. Playlist artwork scrolls away with the list.
+- Song lists have persistent checkboxes. Ordinary clicks play songs, while explicit selection exposes playlist, like and download actions for one or more songs.
+- Android and the web shell support vertical touch scrolling in lists and settings, with gesture cancellation that prevents a swipe from playing or selecting a song.
+- Rejected GitHub credentials show a reauthorization prompt and pause automatic sync until the credentials are replaced. API errors retain their status and message.
+
 ## [0.4.0] - 2026-11-19
 
 - One **Sync Plugins and Data** switch covers every plugin's standard settings and JSON storage, including playlists, likes, history and saved sign-ins. Plugins can declare cache keys through `sync.localKeys`.

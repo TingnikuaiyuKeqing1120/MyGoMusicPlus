@@ -218,7 +218,7 @@ func (a *app) settingsView(c *ui.Context) {
 		// scrolls goes under a hard edge there, showing only once there's something under it.
 		pad := max(24, topBar(c)+6)
 		ui.Box(c).Grow(1).MinWidth(0).Children(func() {
-			ui.Scroll(c.Key(current.id+"\x00"+query)).Fill().Padding(pad, 28, 32, 28).Gap(8).Children(func() {
+			ui.Scroll(c.Key(current.id+"\x00"+query)).ObserveInput(touchScrollInput).Fill().Padding(pad, 28, 32, 28).Gap(8).Children(func() {
 				mark := ui.Box(c.Key("start-mark")).Height(0).Bounds()
 				if mark.W > 0 {
 					a.settingsUnderTop = mark.Y < pad-0.5
@@ -302,7 +302,7 @@ func (a *app) settingsNarrow(c *ui.Context, p palette, sections []settingsSectio
 			})
 			return
 		}
-		ui.Scroll(c.Key(current.id+"\x00"+query)).Fill().Padding(12, 12, 24, 12).Gap(8).Children(func() {
+		ui.Scroll(c.Key(current.id+"\x00"+query)).ObserveInput(touchScrollInput).Fill().Padding(12, 12, 24, 12).Gap(8).Children(func() {
 			a.settingsGroup(c, p, current, "", "")
 		})
 	})

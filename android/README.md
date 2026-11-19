@@ -69,6 +69,35 @@ Plus Release 提供可覆盖升级的 Android APK。文末列出模拟器已验�
 
 ## 验证范围
 
+### 本机带界面模拟器
+
+Windows 开发机保留 Android 15 Google APIs x86_64 虚拟设备 `test35`。桌面的「Android 测试模拟器」快捷方式打开模拟器窗口，其他项目的 APK 也可拖入安装。
+
+- SDK 位于 `E:/Program/tools/android-sdk`，使用 WHPX 硬件加速、主机 GPU 和 3 GB 内存。
+- 通用启动脚本位于 `E:/Program/tools/android-testing/Start-Android.ps1`，同目录的 `README.md` 记录使用方法。
+- 虚拟设备数据位于 `%USERPROFILE%/.android/avd/test35.avd`，关闭窗口后保留。
+- 可通过参数安装和启动应用，命令会明确指定模拟器。
+
+```powershell
+& E:/Program/tools/android-testing/Start-Android.ps1 `
+  -Apk E:/Program/mygo-music/android/app/build/outputs/apk/debug/app-debug.apk `
+  -Package com.mygomusic.plus
+```
+
+### 布局与交互回归
+
+`internal/app/batch_test.go` 和 `mobile_test.go` 验证 320、390 dp 手机宽度及桌面宽度下的复选框、批量操作、播放器和队列导航。设置 `MM_FRAMES` 可输出截图供目视检查。新增 UI 测试运行五次。
+
+```powershell
+$env:CGO_ENABLED = '0'
+go test ./internal/app -run 'TestTrackCheckboxSelection|TestBatchLikeCheckboxes|TestMobilePlayerNavigation|TestTouchScrollRegions' -count=5
+node --test web/touch-scroll.test.mjs
+```
+
+`web/touch-scroll.js` 将滚动区域内的竖向触摸拖动转为精确滚轮输入。Go 视图通过 `ObserveInput(touchScrollInput)` 标记滚动区域，拖动超过阈值时取消原点击。横向控件拖动和封面墙继续使用原有手势。
+
 模拟器已验证授权链接的应用选择与浏览器回退，以及更新包在取消安装、冷启动后保留，断网时可再次打开系统安装器。启动器使用黑猫图标，播放通知使用系统 `ic_media_play`。
+
+2026-11-19 的布局修复在 Android 15 模拟器中验证了歌单上滑、封面随列表滚出、左侧复选框、两首歌曲批量喜欢、批量加入歌单和批量下载。已核对测试插件的存储及下载文件。全屏队列、切歌和系统返回也完成了交互验证。模拟器保留「界面测试音源」供本机复查，测试数据独立于日常播放器。
 
 真机仍待验证后台与锁屏续播、音频焦点、耳机键、Android 14+ 后台启动前台服务的限制、不同 WebView 的 OPFS 持久性与配额，以及真实账号授权和系统安装权限确认后的完整升级流程。`CacheMB` 控制播放器的音频缓存，OPFS 配额由系统和 WebView 决定。

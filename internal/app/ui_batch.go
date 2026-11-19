@@ -24,25 +24,55 @@ func (a *app) selectedTracks() []music.Track {
 	return out
 }
 
+// trackCheckbox is always available and has a spoken label without adding text
+// to the narrow selection column.
+func (a *app) trackCheckbox(c *ui.Context, row int, name string) {
+	checked := a.trackSel.Has(row)
+	ui.Checkbox(c.Key("sel"), &checked, "").Label(Tf("Select %s", name)).Size(32, 40).Shrink(0).Justify(ui.Center).
+		OnClick(func() {
+			if checked {
+				a.trackSel.Add(row)
+			} else {
+				a.trackSel.Remove(row)
+			}
+		})
+}
+
+// trackListTheme gives checked rows a quiet highlight while their contents
+// keep the usual button and checkbox colors.
+func trackListTheme(c *ui.Context, p palette) *ui.Theme {
+	t := *c.Theme()
+	t.Accent = p.accent.Alpha(0.12).Over(p.bg)
+	t.InactiveAccent, t.AccentText = t.Accent, p.text
+	return &t
+}
+
 // batchBar floats over the page when several songs are chosen: a count, and
 // what can be done with them all at once, as far as the source can.
 func (a *app) batchBar(c *ui.Context) {
-	if a.nowPlaying || a.trackSel.Len() < 2 || a.route.page == pageDownloaded {
+	if a.nowPlaying || a.trackSel.Len() == 0 || a.route.page == pageDownloaded {
 		return
 	}
 	sel := a.selectedTracks()
-	if len(sel) < 2 {
+	if len(sel) == 0 {
+		return
+	}
+	if narrow(c) {
+		a.mobileBatchBar(c, sel)
 		return
 	}
 	p := a.pal
-	ui.Box(c.Key("batch-bar")).Absolute().Left(0).Right(0).Bottom(playerBarHeight + 16).Center().PassThrough().Children(func() {
-		ui.Row(c).Gap(8).Padding(8, 12).Radius(14).AlignItems(ui.Center).
+	ui.Box(c.Key("batch-bar")).Absolute().Left(8).Right(8).Bottom(playerBarHeight + 8).Center().PassThrough().Children(func() {
+		ui.Row(c).Wrap().MaxWidthPercent(100).Gap(8).Padding(8, 12).Radius(14).AlignItems(ui.Center).
 			Background(p.bg).Border(1, p.hairline).Shadow(0, 8, 24, -4, ui.RGBA(0, 0, 0, 0.25)).
 			Children(func() {
 				ui.Text(c, Tf("%d selected", len(sel))).FontSize(13).FontWeight(600).Margin(0, 4, 0, 0)
 				if a.can("addToPlaylist") && !a.library.signedOut() {
 					b := pillButton(c.Key("batch-add"), iconPlus, T("Add Selected to Playlist"), p.hover.Over(p.bg), p.text)
 					b.Menu(func(m *ui.Menu) { a.batchAddMenu(m, sel) })
+				}
+				if a.can("like") && !a.library.signedOut() {
+					pillButton(c.Key("batch-like"), iconHeart, T("Like Selected"), p.hover.Over(p.bg), p.text).OnClick(func() { a.likeSelected(sel) })
 				}
 				if a.route.page == pagePlaylist && a.editable(a.route.id) != nil && a.can("removeFromPlaylist") {
 					if pillButton(c.Key("batch-remove"), iconTrash, T("Remove from Playlist"), p.hover.Over(p.bg), p.text).Clicked() {
@@ -63,6 +93,48 @@ func (a *app) batchBar(c *ui.Context) {
 					a.trackSel.Clear()
 				}
 			})
+	})
+}
+
+func (a *app) likeSelected(tracks []music.Track) {
+	for _, tr := range tracks {
+		if !a.isLiked(&tr) {
+			a.toggleLike(&tr)
+		}
+	}
+}
+
+func (a *app) mobileBatchBar(c *ui.Context, sel []music.Track) {
+	p := a.pal
+	ui.Column(c.Key("batch-bar")).Absolute().Left(8).Right(8).Bottom(playerBarHeight+8).
+		Padding(8).Gap(6).Radius(12).Background(p.bg).Border(1, p.hairline).Children(func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, Tf("%d selected", len(sel))).FontSize(12).Grow(1)
+			ui.Button(c.Key("batch-all"), T("Select All")).Height(28).OnClick(func() {
+				for j := range a.pageTracks {
+					a.trackSel.Add(j + 1)
+				}
+			})
+			if a.route.page == pagePlaylist && a.editable(a.route.id) != nil && a.can("removeFromPlaylist") {
+				iconButton(c.Key("batch-remove"), iconTrash, 16, p.muted, T("Remove from Playlist")).
+					OnClick(func() { a.removeFromBatch(a.library, a.route.id, sel) })
+			}
+			iconButton(c.Key("batch-clear"), iconX, 16, p.muted, T("Clear")).OnClick(a.trackSel.Clear)
+		})
+		ui.Row(c).Wrap().Gap(6).Children(func() {
+			if a.can("addToPlaylist") && !a.library.signedOut() {
+				pillButton(c.Key("batch-add"), iconPlus, T("Playlist"), p.hover.Over(p.bg), p.text).
+					PaddingX(10).Gap(6).Label(T("Add Selected to Playlist")).Menu(func(m *ui.Menu) { a.batchAddMenu(m, sel) })
+			}
+			if a.can("like") && !a.library.signedOut() {
+				pillButton(c.Key("batch-like"), iconHeart, T("Like"), p.hover.Over(p.bg), p.text).
+					PaddingX(10).Gap(6).Label(T("Like Selected")).OnClick(func() { a.likeSelected(sel) })
+			}
+			if a.canDownloadAny(sel) {
+				pillButton(c.Key("batch-download"), iconDownload, T("Download"), p.hover.Over(p.bg), p.text).
+					PaddingX(10).Gap(6).Menu(func(m *ui.Menu) { a.downloadQualityMenu(m, sel) })
+			}
+		})
 	})
 }
 

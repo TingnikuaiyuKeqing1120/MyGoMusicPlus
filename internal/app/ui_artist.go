@@ -182,7 +182,7 @@ func (a *app) artistPage(c *ui.Context) {
 // a tab of a page that lists tracks puts its header in the same place.
 func (a *app) scrollPage(c *ui.Context, content func()) {
 	top, bottom := a.insets(c)
-	ui.Scroll(c.Key(a.route)).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
+	ui.Scroll(c.Key(a.route)).ObserveInput(touchScrollInput).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
 		content()
@@ -202,8 +202,8 @@ func (a *app) artistHeader(c *ui.Context, d *artistData) {
 	ar := &d.page.Artist
 	songs := d.page.Tracks
 	lib := a.library
-	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 8, 0).Children(func() {
-		ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
+	mediaHeader(c).Padding(0, 0, 8, 0).Children(func() {
+		ui.Box(c).Size(mediaCoverSize(c, artistPhotoSize), mediaCoverSize(c, artistPhotoSize)).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
 			a.coverFill(c, ar.ImageURL, 600, artistPhotoSize/2)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
@@ -219,7 +219,7 @@ func (a *app) artistHeader(c *ui.Context, d *artistData) {
 				meta = append(meta, Tf("%d albums", n))
 			}
 			ui.Text(c, strings.Join(meta, " · ")).FontSize(13).TextColor(p.muted)
-			ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
+			ui.Row(c).Wrap().Gap(10).Margin(10, 0, 0, 0).Children(func() {
 				if len(songs) > 0 {
 					a.playButtons(c, songs)
 				}
@@ -249,8 +249,8 @@ func (a *app) artistHeader(c *ui.Context, d *artistData) {
 }
 
 func (a *app) artistHeaderSkeleton(c *ui.Context, s shimmer) {
-	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 8, 0).Children(func() {
-		s.bone(c, artistPhotoSize/2).Size(artistPhotoSize, artistPhotoSize)
+	mediaHeader(c).Padding(0, 0, 8, 0).Children(func() {
+		s.bone(c, artistPhotoSize/2).Size(mediaCoverSize(c, artistPhotoSize), mediaCoverSize(c, artistPhotoSize))
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 			s.text(c, 12, 1.3).Width(24)
 			s.text(c, 30, 1.2).WidthPercent(32)
@@ -259,7 +259,7 @@ func (a *app) artistHeaderSkeleton(c *ui.Context, s shimmer) {
 				s.text(c, 12.5, 1.45).WidthPercent(78)
 				s.text(c, 12.5, 1.45).WidthPercent(52)
 			})
-			ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
+			ui.Row(c).Wrap().Gap(10).Margin(10, 0, 0, 0).Children(func() {
 				s.bone(c, 18).Size(92, 36)
 				s.bone(c, 18).Size(120, 36)
 			})

@@ -136,8 +136,8 @@ func (a *app) showPage(c *ui.Context) {
 	show := d.show
 	cur := a.pl.Current()
 	a.scrollPage(c, func() {
-		ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 8, 0).Children(func() {
-			ui.Box(c).Size(212, 212).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
+		mediaHeader(c).Padding(0, 0, 8, 0).Children(func() {
+			ui.Box(c).Size(mediaCoverSize(c, 212), mediaCoverSize(c, 212)).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
 				a.coverFill(c, show.ImageURL, 600, 14)
 			})
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
@@ -162,7 +162,7 @@ func (a *app) showPage(c *ui.Context) {
 				if desc := strings.TrimSpace(show.Description); desc != "" {
 					ui.Text(c, strings.ReplaceAll(desc, "\n", " ")).FontSize(12.5).TextColor(p.muted).MaxLines(2).LineHeight(1.45).Margin(2, 0, 0, 0)
 				}
-				ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
+				ui.Row(c).Wrap().Gap(10).Margin(10, 0, 0, 0).Children(func() {
 					if pillButton(c.Key("play"), iconPlay, T("Play"), p.accent, p.onAccent).Clicked() {
 						a.playEpisodes(d)
 					}
@@ -274,7 +274,7 @@ func (a *app) showRow(c *ui.Context, show *music.Show) {
 // showPane is what the episode playing is about, in Now Playing, in place of a
 // song's lyrics.
 func (a *app) showPane(c *ui.Context, tr *music.Track) {
-	ui.Scroll(c.Key(tr.ID)).Grow(1).Padding(4, 12, 48, 0).Children(func() {
+	ui.Scroll(c.Key(tr.ID)).ObserveInput(touchScrollInput).Grow(1).Padding(4, 12, 48, 0).Children(func() {
 		desc := strings.TrimSpace(tr.Description)
 		if desc == "" {
 			desc = T("This episode has no description")
@@ -310,7 +310,7 @@ func (a *app) showsPage(c *ui.Context) {
 		return
 	}
 	top, bottom := a.insets(c)
-	ui.Scroll(c.Key(a.route)).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad, bottom+48, pagePad).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
+	ui.Scroll(c.Key(a.route)).ObserveInput(touchScrollInput).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad, bottom+48, pagePad).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
 		a.heading(c, a.builtinTitle("shows"), "")

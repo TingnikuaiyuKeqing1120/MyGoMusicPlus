@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"mygo-music/internal/i18n"
 	"mygo-music/internal/music"
 )
 
@@ -175,8 +177,99 @@ func TestRowClickPlaysWithoutBar(t *testing.T) {
 	if cur := a.pl.Current(); cur == nil || cur.ID != "1" {
 		t.Fatalf("playing %+v, want the song clicked", cur)
 	}
+	if a.trackSel.Len() != 0 {
+		t.Fatal("playing the row left it selected for batch actions")
+	}
 	if tt.HasText("selected") {
 		t.Errorf("one song chosen showed the bar: %q", tt.Texts())
+	}
+}
+
+// Checkboxes select without playing on desktop and phone, allow a single-item
+// batch, and a plain click returns to playback without leaving a selection.
+func TestTrackCheckboxSelection(t *testing.T) {
+	for _, width := range []int{320, 390, 1200} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			language := i18n.Language()
+			i18n.SetLanguage("zh-CN")
+			t.Cleanup(func() { i18n.SetLanguage(language) })
+			a, tt, ch, added, _ := batchApp(t)
+			tt.SetSize(width, 800)
+			tt.SetDark(true)
+			settled(tt)
+			if err := tt.Click(Tf("Select %s", "宝船")); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			if a.trackSel.Len() != 1 || !a.trackSel.Has(1) || a.pl.Current() != nil {
+				t.Fatal("checkbox did not select exactly one song without playing")
+			}
+			if dir := os.Getenv("MM_FRAMES"); dir != "" {
+				saveFrame(t, dir, fmt.Sprintf("playlist-checkbox-%d.png", width), tt.Image())
+			}
+			if err := tt.Click(T("Add Selected to Playlist")); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.ChooseMenuItem("开车歌单"); err != nil {
+				t.Fatal(err)
+			}
+			until(t, ch, func() bool { return a.toast == Tf("Added %d songs to the playlist", 1) })
+			if len(*added) != 1 || (*added)[0] != "7:1" {
+				t.Fatalf("added %v", *added)
+			}
+			tt.Frame()
+			if err := tt.Click(Tf("Select %s", "大海")); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			if a.trackSel.Len() != 2 {
+				t.Fatal("second checkbox replaced the first selection")
+			}
+			if err := tt.Click(T("Clear")); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			if err := tt.Click(Tf("Select %s", "宝船")); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			if err := tt.Click("宝船"); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+			if a.trackSel.Len() != 0 || a.pl.Current() == nil || a.pl.Current().ID != "1" {
+				t.Fatal("plain click on a selected song failed to switch back to playback")
+			}
+		})
+	}
+}
+
+// Batch liking adds selected songs and keeps already liked songs liked.
+func TestBatchLikeCheckboxes(t *testing.T) {
+	a, tt, ch, _, _ := batchApp(t)
+	tt.SetSize(390, 800)
+	a.liked["1"] = true
+	var liked []string
+	fake(a).like = func(id string, on bool) error {
+		if !on {
+			t.Error("batch liking unliked a song")
+		}
+		liked = append(liked, id)
+		return nil
+	}
+	settled(tt)
+	for _, name := range []string{"宝船", "大海"} {
+		if err := tt.Click(Tf("Select %s", name)); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	if err := tt.Click(T("Like Selected")); err != nil {
+		t.Fatal(err)
+	}
+	until(t, ch, func() bool { return len(a.likedList) == 1 })
+	if len(liked) != 1 || liked[0] != "2" || !a.liked["1"] || !a.liked["2"] {
+		t.Fatalf("likes=%v state=%v", liked, a.liked)
 	}
 }
 

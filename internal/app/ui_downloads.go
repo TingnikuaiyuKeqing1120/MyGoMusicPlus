@@ -44,7 +44,7 @@ func (a *app) downloadsPanel(c *ui.Context, pop popover) {
 		ui.Text(c, T("No downloads yet")).FontSize(12.5).TextColor(p.muted).Padding(8, 0)
 		return
 	}
-	ui.Scroll(c).MaxHeight(360).Children(func() {
+	ui.Scroll(c).ObserveInput(touchScrollInput).MaxHeight(360).Children(func() {
 		ui.Column(c).Gap(2).Children(func() {
 			for _, j := range m.jobs {
 				a.downloadRow(c, j, pop)

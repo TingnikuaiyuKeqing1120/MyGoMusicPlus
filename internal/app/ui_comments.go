@@ -190,7 +190,7 @@ func (a *app) commentsPane(c *ui.Context, tr *music.Track) {
 		return
 	}
 	now := c.Now()
-	scroll := ui.Scroll(c.Key("comments")).Grow(1).TrackScroll(&cs.scroll).Padding(4, 8, 48, 0)
+	scroll := ui.Scroll(c.Key("comments")).ObserveInput(touchScrollInput).Grow(1).TrackScroll(&cs.scroll).Padding(4, 8, 48, 0)
 	var end ui.Rect
 	scroll.Children(func() {
 		ui.Column(c).Gap(2).Children(func() {

@@ -370,6 +370,10 @@ func (a *app) playerBar(c *ui.Context) {
 	pl := a.pl
 	tr := pl.Current()
 	a.tickTimes(c)
+	if narrow(c) {
+		a.mobilePlayerBar(c)
+		return
+	}
 	// Over the foot of the page: while content is under it, its edge frosts
 	// it, with a hairline along the top.
 	edge := ui.Box(c.Key("bottom-edge")).Absolute().Left(0).Right(0).Bottom(0).Height(playerBarHeight).

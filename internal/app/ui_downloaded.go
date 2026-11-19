@@ -26,8 +26,8 @@ func (a *app) downloadedPage(c *ui.Context) {
 
 	header := func(c *ui.Context) {
 		p := a.pal
-		ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
-			ui.Box(c).Size(212, 212).Radius(14).Center().Shadow(0, 18, 40, -10, p.cardShade).TextColor(white).
+		mediaHeader(c).Padding(0, 0, 26, 0).Children(func() {
+			ui.Box(c).Size(mediaCoverSize(c, 212), mediaCoverSize(c, 212)).Radius(14).Center().Shadow(0, 18, 40, -10, p.cardShade).TextColor(white).
 				LinearGradient(ui.LinearGradient{Angle: 135, Oklab: true, From: ui.Oklch(0.72, 0.15, 150), To: ui.Oklch(0.55, 0.18, 200)}).
 				Children(func() { ui.Icon(c, iconDownload).Size(84, 84) })
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
@@ -35,9 +35,9 @@ func (a *app) downloadedPage(c *ui.Context) {
 				ui.Text(c, T("Downloaded")).FontSize(30).FontWeight(800).LetterSpacing(-0.6)
 				ui.Text(c, Tf("%d songs · %s", len(jobs), downloadSize(total))).FontSize(13).TextColor(p.muted)
 				if len(jobs) > 0 {
-					ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
+					ui.Row(c).Wrap().Gap(10).Margin(10, 0, 0, 0).Children(func() {
 						a.playButtons(c, tracks)
-						if a.trackSel.Len() >= 2 {
+						if a.trackSel.Len() > 0 {
 							if pillButton(c.Key("dl-delete"), iconTrash, T("Delete Selected"), p.hover.Over(p.bg), p.text).Clicked() {
 								a.askDeleteDownloads(a.selectedTracks())
 							}
@@ -62,29 +62,46 @@ func (a *app) downloadedPage(c *ui.Context) {
 		}
 		return ""
 	}
-	a.selList.Header = func(i int) bool { return i == 0 || i > len(jobs) }
+	// ListState.Header pins rows while scrolling. This page's artwork scrolls
+	// away with its songs, so non-song selections are filtered after input.
+	a.selList.Header = nil
 	a.selList.Selection = &a.trackSel
+	a.selList.MenuKeepsSelection = true
 	a.selList.Reorder, a.selList.DragRows = nil, nil
-	ui.List(c.Key(a.route), &a.selList, rows).
-		Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).
-		Rows(func(r ui.ListRow) {
-			i := r.Index
-			if i == 0 {
-				ui.Column(c).Children(func() {
-					a.startMark(c)
-					header(c)
+	played := false
+	theme := c.Theme()
+	ui.Themed(c, trackListTheme(c, a.pal)).Grow(1).Children(func() {
+		ui.List(c.Key(a.route), &a.selList, rows).ObserveInput(touchScrollInput).OnChange(func() {
+			if played {
+				a.trackSel.Clear()
+			}
+			a.trackSel.Remove(0)
+			for i := len(jobs) + 1; i < rows; i++ {
+				a.trackSel.Remove(i)
+			}
+		}).
+			Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).
+			Rows(func(r ui.ListRow) {
+				ui.Themed(c, theme).Children(func() {
+					i := r.Index
+					if i == 0 {
+						ui.Column(c).Children(func() {
+							a.startMark(c)
+							header(c)
+						})
+						return
+					}
+					if i == rows-1 {
+						defer a.endMark(c)
+					}
+					if i > len(jobs) {
+						footer[i-len(jobs)-1](c)
+						return
+					}
+					played = a.downloadedRow(c, jobs, tracks, i-1, r) || played
 				})
-				return
-			}
-			if i == rows-1 {
-				defer a.endMark(c)
-			}
-			if i > len(jobs) {
-				footer[i-len(jobs)-1](c)
-				return
-			}
-			a.downloadedRow(c, jobs, tracks, i-1, r)
-		})
+			})
+	})
 	a.selList.OnShortcut(c, 0, ui.KeyDelete, func() {
 		a.askDeleteDownloads(a.selectedTracks())
 	})
@@ -100,13 +117,17 @@ func downloadSize(n int64) string {
 
 // downloadedRow is one saved song: its cover and credits, how much it takes,
 // and its show-in-folder and delete, played from its file as it's clicked.
-func (a *app) downloadedRow(c *ui.Context, jobs []*dlJob, tracks []music.Track, i int, r ui.ListRow) {
+func (a *app) downloadedRow(c *ui.Context, jobs []*dlJob, tracks []music.Track, i int, r ui.ListRow) bool {
 	p := a.pal
 	tr := &tracks[i]
 	j := jobs[i]
 	playing := sameTrack(a.pl.Current(), tr)
 	k := i + 1
 	row := ui.Row(c).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center)
+	compact := narrow(c)
+	if compact {
+		row.Height(64).PaddingX(6).Gap(8)
+	}
 	hovered := row.Hovered()
 	bg := ui.Transparent
 	switch {
@@ -117,26 +138,8 @@ func (a *app) downloadedRow(c *ui.Context, jobs []*dlJob, tracks []music.Track, 
 	}
 	row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond}))
 	row.Children(func() {
-		ui.Box(c).Width(26).Center().Children(func() {
-			switch {
-			case a.trackSel.Len() >= 2 || r.Selected():
-				checked := a.trackSel.Has(k)
-				ui.Checkbox(c.Key("sel"), &checked, T("Select")).OnClick(func() {
-					if checked {
-						a.trackSel.Add(k)
-					} else {
-						a.trackSel.Remove(k)
-					}
-				})
-			case playing:
-				a.nowPlayingBars(c)
-			case hovered:
-				ui.Icon(c, iconPlay).Size(13, 13).TextColor(p.text)
-			default:
-				ui.Textf(c, "%d", i+1).FontSize(13).FontFeatures("tnum").TextColor(p.faint)
-			}
-		})
-		a.cover(c, tr.Album.ImageURL, 96, 38, 6)
+		a.trackCheckbox(c, k, tr.Name)
+		a.cover(c, tr.Album.ImageURL, 96, 38, 6).Shrink(0)
 		ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
 			name := p.text
 			if playing {
@@ -145,8 +148,10 @@ func (a *app) downloadedRow(c *ui.Context, jobs []*dlJob, tracks []music.Track, 
 			ui.Text(c, tr.Name).FontSize(14).FontWeight(500).TextColor(name).SingleLine()
 			ui.Text(c, tr.ArtistNames()).FontSize(12.5).TextColor(p.muted).SingleLine()
 		})
-		ui.Textf(c, "%.1f MB", float64(j.size)/(1<<20)).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(72).TextAlign(ui.End)
-		if !onWeb {
+		if !compact {
+			ui.Textf(c, "%.1f MB", float64(j.size)/(1<<20)).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(72).TextAlign(ui.End)
+		}
+		if !onWeb && !compact {
 			ui.Box(c).Size(32, 32).Center().Children(func() {
 				if iconButton(c.Key("reveal"), iconFolder, 15, p.muted, T("Show in Folder")).Clicked() {
 					revealFile(j.path)
@@ -158,9 +163,14 @@ func (a *app) downloadedRow(c *ui.Context, jobs []*dlJob, tracks []music.Track, 
 				a.askDeleteDownloads([]music.Track{*tr})
 			}
 		})
-		ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
+		if !compact {
+			ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
+		}
 	})
-	if row.RowClicked() {
+	play := row.RowClicked()
+	if play {
+		a.trackSel.Clear()
 		a.pl.PlayTrack(tracks, i)
 	}
+	return play
 }

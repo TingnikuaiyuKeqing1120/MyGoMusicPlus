@@ -310,6 +310,10 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accen
 	if a.npPane != paneWall {
 		a.wallState.track = ""
 	}
+	if narrow(c) {
+		a.mobileNowPlaying(c, tr, art, accent, w, h)
+		return
+	}
 	{
 		// The top strip drags the window; the chevron closes the view,
 		// showing only while the pointer is in the window, as the pane tabs do.
@@ -643,7 +647,7 @@ func (a *app) lyricsPane(c *ui.Context, tr *music.Track, h float32) {
 	}
 	lag := a.lyricGlide.step(c, &a.lyricScroll)
 
-	scroll := ui.Scroll(c.Key("lyrics")).Grow(1).TrackScroll(&a.lyricScroll).Padding(0, 8, h*0.5, 0)
+	scroll := ui.Scroll(c.Key("lyrics")).ObserveInput(touchScrollInput).Grow(1).TrackScroll(&a.lyricScroll).Padding(0, 8, h*0.5, 0)
 	dim, quiet := a.quietShown(c, scroll, tr, lines, loaded)
 	if dim > 0.98 {
 		// Under the hot comment, gone, not drawn faint.
@@ -865,5 +869,5 @@ func (a *app) queuePane(c *ui.Context) {
 		if row.Clicked() && !tr.Unavailable && !playing {
 			pl.Jump(i)
 		}
-	}).Grow(1).Padding(8, 0, 40, 0).Gap(2)
+	}).ObserveInput(touchScrollInput).Grow(1).Padding(8, 0, 40, 0).Gap(2)
 }

@@ -105,8 +105,8 @@ func (a *app) browseHeader(c *ui.Context, page *music.Browse) {
 	}
 	// As far below as an artist's sections are, as its first title keeps
 	// none of its own.
-	ui.Row(c).Gap(28).AlignItems(ui.End).Margin(0, 0, 34, 0).Children(func() {
-		ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
+	mediaHeader(c).Margin(0, 0, 34, 0).Children(func() {
+		ui.Box(c).Size(mediaCoverSize(c, artistPhotoSize), mediaCoverSize(c, artistPhotoSize)).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
 			a.coverFill(c, page.ImageURL, 600, artistPhotoSize/2)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
@@ -218,7 +218,7 @@ func (a *app) browseRows(c *ui.Context, page *music.Browse, pageID string, heade
 		default:
 			a.cardRow(c, sec, r, cols)
 		}
-	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
+	}).ObserveInput(touchScrollInput).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
 }
 
 // browseTitle is a section's title, with a way to all of it if there's more.
@@ -306,7 +306,7 @@ func (a *app) sectionPage(c *ui.Context) {
 		about += " · " + sec.Subtitle
 	}
 	a.trackRows(c, sec.Tracks, true, func(c *ui.Context) {
-		ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
+		mediaHeader(c).Padding(0, 0, 26, 0).Children(func() {
 			a.dayCover(c, sec.Tracks, now)
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 				ui.Text(c, i18n.Today(now)).FontSize(12).FontWeight(600).LetterSpacing(0.3).TextColor(p.muted).MaxLines(1)

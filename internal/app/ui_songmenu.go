@@ -26,6 +26,16 @@ func (a *app) songMenu(c *ui.Context, tr *music.Track, size float32, color ui.Co
 func (a *app) songItems(tr *music.Track, pid string) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		lib := a.trackLib(tr)
+		if lib.canLike(tr) {
+			label := T("Like")
+			if a.isLiked(tr) {
+				label = T("Unlike")
+			}
+			if m.Item(label).Chosen() {
+				a.toggleLike(tr)
+			}
+			m.Separator()
+		}
 		if m.Item(T("Copy Title")).Chosen() {
 			copyText(tr.Name)
 		}

@@ -68,7 +68,7 @@ func (a *app) homePage(c *ui.Context) {
 		return
 	}
 	top, bottom := a.insets(c)
-	ui.Scroll(c.Key(a.route)).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad-12, bottom+48, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
+	ui.Scroll(c.Key(a.route)).ObserveInput(touchScrollInput).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad-12, bottom+48, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
 		ui.Box(c).PaddingX(12).Children(func() { a.homeHello(c, now) })
@@ -294,8 +294,8 @@ func (a *app) playlistPage(c *ui.Context) {
 
 func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 	p := a.pal
-	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
-		ui.Box(c).Size(212, 212).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
+	mediaHeader(c).Padding(0, 0, 26, 0).Children(func() {
+		ui.Box(c).Size(mediaCoverSize(c, 212), mediaCoverSize(c, 212)).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
 			a.coverFill(c, pl.ImageURL, 600, 14)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
@@ -310,7 +310,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 			if d := strings.TrimSpace(pl.Description); d != "" {
 				ui.Text(c, strings.ReplaceAll(d, "\n", " ")).FontSize(12.5).TextColor(p.muted).MaxLines(2).LineHeight(1.45).Margin(2, 0, 0, 0)
 			}
-			ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
+			ui.Row(c).Wrap().Gap(10).Margin(10, 0, 0, 0).Children(func() {
 				a.playButtons(c, pl.Tracks)
 				if a.canDownloadAny(pl.Tracks) {
 					pillButton(c.Key("download-all"), iconDownload, T("Download All"), p.hover.Over(p.bg), p.text).
@@ -354,8 +354,8 @@ func (a *app) likedPage(c *ui.Context) {
 	lib := a.library
 	header := func(c *ui.Context) {
 		p := a.pal
-		ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
-			ui.Box(c).Size(212, 212).Radius(14).Center().Shadow(0, 18, 40, -10, p.cardShade).TextColor(white).
+		mediaHeader(c).Padding(0, 0, 26, 0).Children(func() {
+			ui.Box(c).Size(mediaCoverSize(c, 212), mediaCoverSize(c, 212)).Radius(14).Center().Shadow(0, 18, 40, -10, p.cardShade).TextColor(white).
 				LinearGradient(ui.LinearGradient{Angle: 135, Oklab: true, From: ui.Oklch(0.72, 0.17, 10), To: ui.Oklch(0.58, 0.22, 350)}).
 				Children(func() { ui.Icon(c, iconHeartFill).Size(84, 84) })
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
@@ -365,7 +365,7 @@ func (a *app) likedPage(c *ui.Context) {
 					ui.Text(c, i18n.Songs(len(lib.likedList))).FontSize(13).TextColor(p.muted)
 				}
 				if len(lib.likedList) > 0 {
-					ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
+					ui.Row(c).Wrap().Gap(10).Margin(10, 0, 0, 0).Children(func() {
 						a.playButtons(c, lib.likedList)
 						if a.canDownloadAny(lib.likedList) {
 							pillButton(c.Key("download-all"), iconDownload, T("Download All"), p.hover.Over(p.bg), p.text).
@@ -470,6 +470,9 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 		pid = a.route.id
 	}
 	top, bottom := a.insets(c)
+	if a.trackSel.Len() > 0 {
+		bottom += 112
+	}
 	// Rows out of view are not built, their marks with them: a list
 	// scrolled away from its start or end has content under the bars.
 	a.underTop, a.underBottom = true, true
@@ -482,38 +485,55 @@ func (a *app) trackRows(c *ui.Context, tracks []music.Track, covers bool, header
 		return ""
 	}
 	// The header and the foot are not songs to choose.
-	a.selList.Header = func(i int) bool { return i == 0 || i > len(tracks) }
+	// ListState.Header pins rows while scrolling. This page's artwork scrolls
+	// away with its songs, so non-song selections are filtered after input.
+	a.selList.Header = nil
 	a.selList.Selection = &a.trackSel
+	a.selList.MenuKeepsSelection = true
 	// In the listener's own playlist, rows drag to reorder; elsewhere they
 	// drag to a playlist of the sidebar to add to it. A list takes one or the
 	// other, not both.
 	a.selList.Reorder, a.selList.DragRows = nil, nil
-	if a.route.page == pagePlaylist && a.editable(a.route.id) != nil && a.can("movePlaylistTrack") {
+	if !narrow(c) && a.route.page == pagePlaylist && a.editable(a.route.id) != nil && a.can("movePlaylistTrack") {
 		pid := a.route.id
 		a.selList.Reorder = func(rows []int, to int) { a.reorderTracks(pid, rows, to) }
-	} else if a.can("addToPlaylist") && !a.library.signedOut() {
+	} else if !narrow(c) && a.can("addToPlaylist") && !a.library.signedOut() {
 		a.selList.DragRows = func(rows []int) any { return draggedTracks(tracks, rows) }
 	}
-	ui.List(c.Key(a.route), &a.selList, rows).
-		Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).
-		Rows(func(r ui.ListRow) {
-			i := r.Index
-			if i == 0 {
-				ui.Column(c).Children(func() {
-					a.startMark(c)
-					header(c)
+	played := false
+	theme := c.Theme()
+	ui.Themed(c, trackListTheme(c, a.pal)).Grow(1).Children(func() {
+		ui.List(c.Key(a.route), &a.selList, rows).ObserveInput(touchScrollInput).OnChange(func() {
+			if played {
+				a.trackSel.Clear()
+			}
+			a.trackSel.Remove(0)
+			for i := len(tracks) + 1; i < rows; i++ {
+				a.trackSel.Remove(i)
+			}
+		}).
+			Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0).
+			Rows(func(r ui.ListRow) {
+				ui.Themed(c, theme).Children(func() {
+					i := r.Index
+					if i == 0 {
+						ui.Column(c).Children(func() {
+							a.startMark(c)
+							header(c)
+						})
+						return
+					}
+					if i == rows-1 {
+						defer a.endMark(c)
+					}
+					if i > len(tracks) {
+						footer[i-len(tracks)-1](c)
+						return
+					}
+					played = a.trackRow(c, tracks, i-1, covers, pid, r, true) || played
 				})
-				return
-			}
-			if i == rows-1 {
-				defer a.endMark(c)
-			}
-			if i > len(tracks) {
-				footer[i-len(tracks)-1](c)
-				return
-			}
-			a.trackRow(c, tracks, i-1, covers, pid, r, true)
-		})
+			})
+	})
 	// Delete takes the chosen songs out of the playlist they are listed in,
 	// while the list has the focus, as a text field's Delete would not.
 	a.selList.OnShortcut(c, 0, ui.KeyDelete, func() {
@@ -535,11 +555,13 @@ func sameTrack(x, y *music.Track) bool {
 // trackRow is a row of the list tracks, its track i, which plays the list from
 // there as it's clicked, and is chosen for the batch bar as its checkbox or a
 // Ctrl/Shift-click chooses it.
-func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, pid string, r ui.ListRow, inList bool) {
+func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, pid string, r ui.ListRow, inList bool) bool {
 	p := a.pal
 	tr := &tracks[i]
 	lib := a.trackLib(tr)
 	w, _ := c.Size()
+	compact := narrow(c)
+	selectable := inList && r.Index > 0
 	// An album's page has no column of the album its songs are on.
 	wide := w-sidebarWidth > 820 && a.route.page != pageAlbum
 	playing := sameTrack(a.pl.Current(), tr)
@@ -549,6 +571,9 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 	// click to play, leaving the choosing to the row.
 	row := ui.Row(c).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).
 		ContextMenu(a.songItems(tr, pid))
+	if compact {
+		row.Height(64).PaddingX(6).Gap(8)
+	}
 	hovered := row.Hovered()
 	bg := ui.Transparent
 	switch {
@@ -563,27 +588,13 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 	}
 	a.wantLike(tr)
 	row.Children(func() {
-		ui.Box(c).Width(26).Center().Children(func() {
-			switch {
-			case a.trackSel.Len() >= 2 || r.Selected():
-				checked := a.trackSel.Has(k)
-				ui.Checkbox(c.Key("sel"), &checked, T("Select")).OnClick(func() {
-					if checked {
-						a.trackSel.Add(k)
-					} else {
-						a.trackSel.Remove(k)
-					}
-				})
-			case playing:
-				a.nowPlayingBars(c)
-			case hovered && !tr.Unavailable:
-				ui.Icon(c, iconPlay).Size(13, 13).TextColor(p.text)
-			default:
-				ui.Textf(c, "%d", i+1).FontSize(13).FontFeatures("tnum").TextColor(p.faint)
-			}
-		})
+		if selectable {
+			a.trackCheckbox(c, k, tr.Name)
+		} else if playing {
+			a.nowPlayingBars(c)
+		}
 		if covers {
-			a.cover(c, tr.Album.ImageURL, 96, 38, 6)
+			a.cover(c, tr.Album.ImageURL, 96, 38, 6).Shrink(0)
 		}
 		ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
 			name := p.text
@@ -602,6 +613,18 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 					a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, src: tr.Source, id: tr.Album.ID})
 				}
 			})
+		}
+		if compact {
+			ui.Column(c).Width(42).Shrink(0).AlignItems(ui.Center).Children(func() {
+				iconButton(c.Key("more"), iconMore, 18, p.muted, Tf("More for %s", tr.Name)).Menu(a.songItems(tr, pid))
+				ui.Row(c).Gap(3).AlignItems(ui.Center).Children(func() {
+					if a.isLiked(tr) {
+						ui.Icon(c, iconHeartFill).Size(10, 10).TextColor(p.accent)
+					}
+					ui.Text(c, clock(tr.Length())).FontSize(10.5).FontFeatures("tnum").TextColor(p.faint)
+				})
+			})
+			return
 		}
 		// A way to put the song in one of the listener's playlists, where the
 		// source takes them and they're signed in to it.
@@ -648,9 +671,13 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 	} else {
 		play = row.Clicked()
 	}
+	if play && selectable {
+		a.trackSel.Clear()
+	}
 	if play && !tr.Unavailable {
 		a.pl.PlayTrack(tracks, i)
 	}
+	return play
 }
 
 // nowPlayingBars dance in the row of the track playing.

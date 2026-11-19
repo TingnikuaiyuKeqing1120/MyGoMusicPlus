@@ -254,7 +254,7 @@ func (a *app) sidebar(c *ui.Context) {
 			a.searchField(c)
 		}
 
-		ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
+		ui.Scroll(c.Key("nav")).ObserveInput(touchScrollInput).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
 			for _, n := range a.sidebarItems() {
 				a.navItem(c, n.icon, n.label, n.route)
 			}

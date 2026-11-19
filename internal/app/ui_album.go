@@ -64,8 +64,8 @@ func (a *app) albumHeader(c *ui.Context, d *albumData) {
 	p := a.pal
 	al := &d.album.Album
 	tracks := d.album.Tracks
-	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
-		ui.Box(c).Size(212, 212).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
+	mediaHeader(c).Padding(0, 0, 26, 0).Children(func() {
+		ui.Box(c).Size(mediaCoverSize(c, 212), mediaCoverSize(c, 212)).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
 			a.coverFill(c, al.ImageURL, 600, 14)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
@@ -92,7 +92,7 @@ func (a *app) albumHeader(c *ui.Context, d *albumData) {
 				}
 				ui.Text(c, sep+strings.Join(meta, " · "))
 			})
-			ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
+			ui.Row(c).Wrap().Gap(10).Margin(10, 0, 0, 0).Children(func() {
 				a.playButtons(c, tracks)
 				if a.can("saveAlbum") {
 					icon, label := iconPlus, TC("Save", "library")
