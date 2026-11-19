@@ -2,7 +2,7 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
-## Unreleased
+## [0.4.1] - 2026-11-19
 
 - Phone layouts stack media headers, fit song rows and the bottom player, and provide full-width Now Playing panes. Playlist artwork scrolls away with the list.
 - Song lists have persistent checkboxes. Ordinary clicks play songs, while explicit selection exposes playlist, like and download actions for one or more songs.
@@ -304,6 +304,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.4.1]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.2...v0.2.3
