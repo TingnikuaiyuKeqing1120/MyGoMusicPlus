@@ -175,7 +175,7 @@ func (e *Engine) syncUnit(unit Unit) error {
 		paths = append(paths, lf.rel)
 	}
 	for path, rf := range m.Files {
-		if legacy && rf.Unit != unit {
+		if legacy && rf.Unit != unit || strings.HasPrefix(path, "plugin-data/") && strings.HasSuffix(path, "/settings.json") {
 			delete(m.Files, path)
 			continue
 		}
@@ -359,7 +359,7 @@ func allowedFile(rel string, unit Unit) bool {
 			return false
 		}
 	}
-	return parts[0] == "plugins" || parts[0] == "plugin-data" && len(parts) == 3 && (parts[2] == "settings.json" || parts[2] == "granted.json")
+	return parts[0] == "plugins" || parts[0] == "plugin-data" && len(parts) == 3 && parts[2] == "granted.json"
 }
 
 // Devices can have different installed sources and update histories.
@@ -456,7 +456,7 @@ func (e *Engine) localFiles(units map[Unit]bool) ([]localFile, error) {
 			if !ent.IsDir() {
 				continue
 			}
-			for _, name := range []string{"settings.json", "granted.json"} {
+			for _, name := range []string{"granted.json"} {
 				if err := add(path.Join("plugin-data", ent.Name(), name), UnitPlugins); err != nil {
 					return nil, err
 				}

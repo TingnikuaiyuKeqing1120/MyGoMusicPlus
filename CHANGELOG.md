@@ -2,6 +2,14 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.4.0] - 2026-11-19
+
+- One **Sync Plugins and Data** switch covers every plugin's standard settings and JSON storage, including playlists, likes, history and saved sign-ins. Plugins can declare cache keys through `sync.localKeys`.
+- Sync merges both devices against their last shared state, retries concurrent cloud writes and saves competing edits in local backups. Empty new devices import existing data. Live plugin state refreshes after a merge.
+- Preferences and playback queues sync between devices. Playback resumes paused on an idle device. Local-library listening history also syncs.
+- The sync page shows the current stage and processed count. GitHub device sign-in has a Copy code button using Android's native clipboard.
+- Duplicate directories with the same plugin ID load once, and importing original-player data resets its prior sync baseline.
+
 ## [0.3.0] - 2026-11-18
 
 - Import an original MyGo Music desktop profile from Settings → Sync. Plus backs up its current data before importing the library, preferences, plugins and their stored data.
@@ -289,6 +297,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.4.0]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.1...v0.2.2

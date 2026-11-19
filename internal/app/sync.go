@@ -28,6 +28,8 @@ const (
 	syncDebounce = 3 * time.Second
 )
 
+var newSyncRepository = sync.NewGitHub
+
 // syncState is what's going on with syncing.
 type syncState struct {
 	cfg         sync.Config
@@ -97,88 +99,104 @@ func (a *app) syncNow() {
 	s.phase, s.done, s.total = "Connecting to GitHub…", 0, 0
 	cfg := s.cfg
 	cfg.Units = maps.Clone(cfg.Units)
-	playlists := cfg.Units[sync.UnitPlaylists]
-	delete(cfg.Units, sync.UnitPlaylists)
 	root := userDataDir("")
-	store := sync.NewGitHub(cfg.Token, cfg.Repo)
-	a.redraw()
+	store := newSyncRepository(cfg.Token, cfg.Repo)
 	progress := func(phase string, done, total int) { a.post(func() { s.phase, s.done, s.total = phase, done, total }) }
+	a.redraw()
 	go func() {
-		defaults, _ := json.Marshal(defaultSettings())
-		files := &sync.Engine{Root: root, Store: store, Progress: progress, Defaults: defaults}
+		files := &sync.Engine{Root: root, Store: store, Progress: progress}
 		err := store.EnsureRepo()
-		if err == nil && cfg.Enabled() {
+		if err == nil && cfg.Units[sync.UnitPlugins] {
 			files.RepoID = store.RepositoryID()
 			for attempt := 0; attempt < 3; attempt++ {
-				err = files.SyncFiles(cfg.Units)
+				err = files.SyncFiles(map[sync.Unit]bool{sync.UnitPlugins: true})
 				if !errors.Is(err, sync.ErrConflict) {
 					break
 				}
 			}
 		}
-		var plugins []*plugin.Plugin
-		if err == nil && slices.ContainsFunc(files.Changed, func(rel string) bool {
-			return strings.HasPrefix(rel, "plugins/") || strings.HasPrefix(rel, "plugin-data/")
-		}) {
-			plugins = plugin.Discover(pluginsDir(), userDataDir("plugin-data"))
+		var loaded []*plugin.Plugin
+		if err == nil && cfg.Units[sync.UnitPlugins] {
+			loaded = plugin.Discover(pluginsDir(), userDataDir("plugin-data"))
 		}
 		a.post(func() {
 			if err != nil {
 				a.endSync(err)
 				return
 			}
-			if cfg.Enabled() {
-				a.syncApplied(files.Changed, plugins)
-			}
-			if !playlists {
-				a.endSync(nil)
-				return
-			}
-			a.syncPlaylists(root, store, progress)
+			a.syncApplied(files.Changed, loaded)
+			a.syncDocuments(root, store, cfg, progress)
 		})
 	}()
 }
 
-func (a *app) syncPlaylists(root string, store *sync.GitHub, progress func(string, int, int)) {
-	type collectionJob struct {
-		id     string
-		source sync.CollectionSource
+func (a *app) syncDocuments(root string, store *sync.GitHub, cfg sync.Config, progress func(string, int, int)) {
+	type documentJob struct {
+		name, title, id string
+		source          sync.DocumentSource
 	}
-	var jobs []collectionJob
-	if a.local != nil {
-		jobs = append(jobs, collectionJob{"local", a.local})
+	var jobs []documentJob
+	if cfg.Units[sync.UnitSettings] {
+		jobs = append(jobs, documentJob{"preferences", T("Settings"), "", appSyncData{app: a}})
 	}
-	for _, p := range a.plugins {
-		if p.Info().ID == bundledGDID {
-			jobs = append(jobs, collectionJob{bundledGDID, plugin.GDCollection{Player: p}})
-			break
+	if cfg.Units[sync.UnitPlugins] {
+		for _, p := range a.plugins {
+			info := p.Info()
+			jobs = append(jobs, documentJob{"plugin-" + info.ID, info.Name, info.ID, p})
 		}
 	}
+	if cfg.Units[sync.UnitSettings] {
+		jobs = append(jobs, documentJob{"playback", T("Playback"), "", appSyncData{app: a, playback: true}})
+	}
+	local := a.local
 	go func() {
-		var counts []string
+		var summaries []string
+		conflicts := 0
+		total := len(jobs)
+		if cfg.Units[sync.UnitPlaylists] && local != nil {
+			total++
+		}
 		for i, job := range jobs {
-			progress("Merging playlists and likes", i, len(jobs))
-			result, err := sync.SyncCollection(store, root, store.RepositoryID(), job.id, job.source)
+			progress("Syncing saved data", i, total)
+			result, err := sync.SyncDocument(store, root, store.RepositoryID(), job.name, job.source)
 			if err != nil {
 				a.post(func() { a.endSync(err) })
 				return
 			}
-			title := T("Local Files")
-			if job.id == bundledGDID {
-				title = T("GD Music")
+			conflicts += result.Conflicts
+			summaries = append(summaries, Tf("%s synced", job.title))
+			if result.Changed && job.id != "" {
+				a.post(func() {
+					if lib := a.libOf(job.id); lib != nil {
+						lib.liked = nil
+						a.loadAccount(lib)
+						a.libraryChanged(lib)
+					}
+				})
 			}
-			counts = append(counts, Tf("%s: %d playlists, %d likes", title, result.Playlists, result.Likes))
-			a.post(func() {
-				if lib := a.libOf(job.id); result.Changed && lib != nil {
-					lib.liked = nil
-					a.libraryChanged(lib)
-				}
-			})
 		}
-		if !slices.ContainsFunc(jobs, func(j collectionJob) bool { return j.id == bundledGDID }) {
-			counts = append(counts, T("Install GD Music to sync its playlists"))
+		if cfg.Units[sync.UnitPlaylists] && local != nil {
+			progress("Merging playlists and likes", len(jobs), total)
+			result, err := sync.SyncCollection(store, root, store.RepositoryID(), "local", local)
+			if err != nil {
+				a.post(func() { a.endSync(err) })
+				return
+			}
+			summaries = append(summaries, Tf("%s: %d playlists, %d likes", T("Local Files"), result.Playlists, result.Likes))
+			if result.Changed {
+				a.post(func() {
+					if lib := a.libOf("local"); lib != nil {
+						lib.liked = nil
+						a.loadAccount(lib)
+						a.libraryChanged(lib)
+					}
+				})
+			}
 		}
-		a.post(func() { a.syncer.summary = strings.Join(counts, " · "); a.endSync(nil) })
+		if conflicts > 0 {
+			summaries = append(summaries, Tf("%d conflicting edits backed up", conflicts))
+		}
+		a.post(func() { a.syncer.done = total; a.syncer.summary = strings.Join(summaries, " · "); a.endSync(nil) })
 	}()
 }
 
@@ -191,7 +209,7 @@ func (a *app) endSync(err error) {
 	}
 	s.last = time.Now()
 	if s.dirty {
-		a.syncNow()
+		a.markSyncDirty()
 	}
 }
 

@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+	"mygo-music/internal/i18n"
 	"mygo-music/internal/local"
+	"mygo-music/internal/music"
 	"mygo-music/internal/plugin"
 	"mygo-music/internal/sync"
 )
@@ -31,8 +33,62 @@ func TestSyncConfigRoundTrip(t *testing.T) {
 	// the engine never gathers it.
 }
 
-// Only GD songs referenced by a like or list cross devices, and the already
-// running phone plugin can display and edit those songs without restarting.
+// An empty phone imports preferences and history while a local edit made
+// during the transfer survives; saved playback can then be resumed paused.
+func TestSyncPreferencesAndPlayback(t *testing.T) {
+	language := i18n.Language()
+	t.Cleanup(func() { i18n.SetLanguage(language) })
+	path, err := sessionPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous, readErr := os.ReadFile(path)
+	t.Cleanup(func() {
+		if readErr == nil {
+			os.WriteFile(path, previous, 0600)
+		} else {
+			os.Remove(path)
+		}
+	})
+	left, right := newTestApp(), newTestApp()
+	left.settings.Quality = "lossless"
+	left.settings.SearchHistory = []string{"first", "second"}
+	left.settings.path = ""
+	leftData, rightData := appSyncData{app: left}, appSyncData{app: right}
+	before, err := rightData.snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	accepted, err := leftData.snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	right.settings.SearchHistory = []string{"during"}
+	onMainThread(func() { err = rightData.apply(before, accepted) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if right.settings.Quality != "lossless" || !slices.Contains(right.settings.SearchHistory, "during") || !slices.Contains(right.settings.SearchHistory, "first") {
+		t.Fatal(right.settings)
+	}
+	track := song("test", "Synced track")
+	track.Source = "fake"
+	left.pl.Cue([]music.Track{track})
+	playback := appSyncData{app: left, playback: true}
+	queue, err := playback.snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = (appSyncData{app: right, playback: true}).apply(sync.Document{}, queue); err != nil {
+		t.Fatal(err)
+	}
+	if right.pl.Current() == nil || right.pl.Current().ID != "test" || right.pl.Playing() {
+		t.Fatal("queue failed to resume paused")
+	}
+}
+
+// Generic plugin data carries GD playlists, history and sign-in state while
+// the running plugin reloads its module after receiving the new storage.
 func TestGDLiveCollection(t *testing.T) {
 	makePlayer := func(root, storage string) *plugin.Plugin {
 		t.Helper()
@@ -55,8 +111,8 @@ func TestGDLiveCollection(t *testing.T) {
 	desktop := makePlayer(t.TempDir(), `{"playlists":[{"id":"p","name":"Music","mine":true,"trackIds":["a"]}],"liked":["a"],"songs":{"a":{"t":{"id":"a","name":"A","album":{}}},"private-search":{"t":{}}},"token":"desktop-private"}`)
 	root := t.TempDir()
 	phone := makePlayer(root, `{"history":["phone-history"],"songs":{"cached":{}}}`)
-	pc, mobile := plugin.GDCollection{Player: desktop}, plugin.GDCollection{Player: phone}
-	want, err := pc.Snapshot()
+	pc, mobile := desktop, phone
+	want, err := pc.SnapshotData()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,14 +120,18 @@ func TestGDLiveCollection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Contains(b, []byte("private")) {
-		t.Fatalf("private plugin data in collection: %s", b)
+	if !bytes.Contains(b, []byte("desktop-private")) {
+		t.Fatal("plugin sign-in missing")
 	}
-	empty, err := mobile.Snapshot()
+	empty, err := mobile.SnapshotData()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = mobile.ApplyCollection(empty, want); err != nil {
+	accepted, _, err := sync.MergeDocument(nil, empty, want, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = mobile.ApplyData(empty, accepted); err != nil {
 		t.Fatal(err)
 	}
 	for _, p := range []*plugin.Plugin{phone, makePlayer(root, "")} {
@@ -153,6 +213,9 @@ func TestPhoneSyncProgress(t *testing.T) {
 	a.syncer.done, a.syncer.total = 1, 2
 	tt := ui.NewTester(a.view, 360, 1100)
 	settled(tt)
+	if dir := os.Getenv("MM_FRAMES"); dir != "" {
+		saveFrame(t, dir, "sync-progress-phone.png", tt.Image())
+	}
 	n, ok := tt.AccessByRole(ui.RoleProgress, syncStatusDesc(&a.syncer))
 	if !ok || n.Now != 0.5 {
 		t.Fatalf("sync progress: %+v", n)

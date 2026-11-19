@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Source) collection() cloud.Collection {
-	out := cloud.Collection{Likes: slices.Clone(s.lib.Likes)}
+	out := cloud.Collection{Likes: slices.Clone(s.lib.Likes), Recent: slices.Clone(s.lib.Recent)}
 	for _, p := range s.lib.Playlists {
 		out.Playlists = append(out.Playlists, cloud.List{ID: p.ID, Name: p.Name, Tracks: slices.Clone(p.Tracks)})
 	}
@@ -36,6 +36,7 @@ func (s *Source) ApplyCollection(before, accepted cloud.Collection) error {
 	}
 	next := s.lib
 	next.Likes = merged.Likes
+	next.Recent = merged.Recent[:min(len(merged.Recent), keepRecent)]
 	next.Playlists = nil
 	for _, p := range merged.Playlists {
 		next.Playlists = append(next.Playlists, playlist(p))

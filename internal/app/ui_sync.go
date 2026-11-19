@@ -126,11 +126,11 @@ func (a *app) openDevicePage(uri string, preferApp bool) {
 func syncUnitText(u sync.Unit) (label, desc string) {
 	switch u {
 	case sync.UnitSettings:
-		return T("Sync Settings"), T("Your preferences, like language, appearance and quality")
+		return T("Sync Settings"), T("Preferences, search history and playback queue")
 	case sync.UnitPlaylists:
-		return T("Sync Playlists"), T("Playlists and likes from Local Files and GD Music")
+		return T("Sync Playlists"), T("Local playlists, likes and listening history")
 	default:
-		return T("Sync Plugins"), T("The plugins you installed and their setup")
+		return T("Sync Plugins and Data"), T("All plugins, their settings and saved data, including sign-ins")
 	}
 }
 

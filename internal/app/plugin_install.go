@@ -269,6 +269,7 @@ func (a *app) pluginInstalled(folder string) error {
 	return nil
 }
 func (a *app) activateInstalledPlugin(p *plugin.Plugin) {
+	p.OnDataChange(func() { a.post(a.markSyncDirty) })
 	id := p.Info().ID
 	in := &a.installer
 	delete(a.settings.PluginUpdates, id)

@@ -34,13 +34,17 @@ The result dialog gives the backup path. Profiles are under `%APPDATA%` on Windo
 
 ## Sync between devices
 
-The development build syncs playlists from **Local Files** and **GD Music**. Published v0.3.0 only includes the built-in source’s playlists. Use the new build on both devices. A first sync can read the earlier repository format. Later writes use separate files for the new format.
+Use v0.4.0 or later on both devices, sign in to the same GitHub account and select the same repository under **Settings → Sync**. **Copy code** puts the authorization code on the clipboard. New repositories are private. Check the visibility of an existing repository before syncing sign-in data.
 
-1. In **Settings → Sync**, sign in to the same GitHub account and select the same repository on both devices. Use **Copy code** to paste the authorization code into GitHub. New repositories are private. Check the visibility of any existing repository you choose.
-2. Enable **Sync Playlists**. For GD Music, install the plugin on both devices or also enable **Sync Plugins** to transfer it. Select GD Music in the player to view its playlists. Plugin sync includes settings that may contain credentials. The GitHub sync token stays on the device.
-3. Press **Sync Now**. The player shows its current stage, files or sources processed, and the resulting playlist and like counts for each source. Configured devices also check at startup and every five minutes.
+- **Sync Plugins and Data** is one switch for every installed plugin. It transfers plugin files, settings and the JSON saved through `host.storage`, including playlists, likes, history, song details and saved sign-ins. Future plugins using this storage join automatically. A service may still require authorization again on another device.
+- **Sync Settings** carries preferences, search history, source selection and the playback queue. An idle player takes the incoming queue paused. Active playback continues, and its current session can be sent by the next sync.
+- **Sync Playlists** carries the built-in local source's playlists, likes and listening history. Plugin playlists are covered by **Sync Plugins and Data**.
 
-The first sync combines playlists by ID, track membership and likes. Later syncs compare both sides with the last successful merge, so independent additions survive and removing a known track can propagate. An entirely empty collection imports the populated copy. If a list is deleted on one device and concurrently edited on the other, the edited list survives. GD Music sends the song details referenced by the selected items. Local folders, audio files, download queues, recent plays and plugin caches stay on the device. A local song can play only where its file is available.
+Press **Sync Now** to see the current stage, processed count and per-source results. Configured devices also check at startup and every five minutes. Local data edits request a sync after a short delay. Audio downloads, image/audio cache files, speech models, window geometry, OS folder permissions and the GitHub sync token stay on each device. Local songs require access to their files on the destination. Programs run by plugins may own databases outside `host.storage`; those databases are outside the shared JSON store.
+
+The first sync combines data. Later syncs use a common ancestor to distinguish edits from deletions. Objects merge by key, unique scalar lists by value, and lists of objects with stable `id` fields by ID. Concurrent scalar edits or unidentifiable lists use the cloud value, with the competing copy saved under the profile's `sync-backups` directory. Changes made while a transfer is running are merged again against live state. Each cloud write checks the revision it read.
+
+The original v0.3.0 playlist format can seed the built-in collection. New data uses separate cloud files, so older clients cannot overwrite the new shared documents. Backups and `sync-history` stay local. Reimporting an original-player profile starts a new merge baseline.
 
 
 ## Build
@@ -225,7 +229,7 @@ A plugin has the JavaScript standard library, timers, `fetch` and its relatives,
 | --- | --- |
 | `host.platform`, `host.arch` | such as `darwin`, `arm64` |
 | `host.dir`, `host.dataDir` | the plugin's folder, and one for its data |
-| `host.storage.get(key)`, `.set(key, value)`, `.remove(key)` | JSON values that outlive the app |
+| `host.storage.get(key)`, `.set(key, value)`, `.remove(key)` | JSON user data that survives restarts and participates in plugin data sync |
 | `host.setting(key)` | what the listener filled in |
 | `host.t(text)`, `host.language()` | the text in the listener's language, from the plugin's `locales`, and that language: `en` or `zh-CN` |
 | `host.removeDataDir(name)` | removes a folder inside `host.dataDir` |
@@ -259,3 +263,7 @@ Everything else takes a permission in `plugin.json`:
 ## License
 
 AGPL-3.0. See [LICENSE](LICENSE).
+
+### Plugin cache keys
+
+`host.storage` holds portable JSON data by default. A plugin can declare keys that contain disposable caches or device-specific paths in `plugin.json` using `"sync": {"localKeys": ["artworkCache", "devicePath"]}`. The player filters these keys from both local snapshots and older cloud data and preserves each device's values. Binary caches and downloaded files in plugin data directories are excluded automatically because only the standard JSON store is transferred. Values such as tokens stored in `host.storage` participate in sync.

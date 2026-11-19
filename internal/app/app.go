@@ -264,6 +264,7 @@ func (a *app) makeSources() {
 	a.headers = &headerPlugins{}
 	music.ImageHeaders = a.headers.image
 	for _, p := range a.plugins {
+		p.OnDataChange(func() { a.post(a.markSyncDirty) })
 		lib := newLibrary(p)
 		if !slices.ContainsFunc(a.allLibs, func(l *library) bool { return l.id == lib.id }) {
 			a.allLibs = append(a.allLibs, lib)

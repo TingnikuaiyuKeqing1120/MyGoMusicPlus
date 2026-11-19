@@ -125,7 +125,8 @@ func (ps Programs) Allows(dir, command string) bool {
 // Manifest is a plugin's plugin.json.
 type Manifest struct {
 	music.Info
-	Main string `json:"main,omitempty"`
+	Sync SyncOptions `json:"sync,omitempty"`
+	Main string      `json:"main,omitempty"`
 	// MinAppVersion is the oldest version of the app the plugin works with,
 	// such as 0.1.8. An older one won't install it, or load it.
 	MinAppVersion  string           `json:"minAppVersion,omitempty"`
@@ -166,12 +167,13 @@ type Plugin struct {
 	// level runs as it starts, and the host functions it calls take mu.
 	starting sync.Mutex
 
-	mu       sync.Mutex // guards what follows
-	settings map[string]string
-	storage  map[string]json.RawMessage
-	granted  bool // the listener let it start programs
-	vm       *vm
-	prompt   func(music.SignInPrompt)
+	mu           sync.Mutex // guards what follows
+	settings     map[string]string
+	storage      map[string]json.RawMessage
+	granted      bool // the listener let it start programs
+	vm           *vm
+	prompt       func(music.SignInPrompt)
+	onDataChange func()
 }
 
 // OnSignInPrompt says what to do with what the plugin wants shown as it signs in.
@@ -689,15 +691,22 @@ func (p *Plugin) Setting(key string) string {
 // host.setting, and hears of it through setSetting if it exports that.
 func (p *Plugin) SetSetting(key, value string) error {
 	p.mu.Lock()
+	previous, existed := p.settings[key]
 	p.settings[key] = value
-	settings := make(map[string]string, len(p.settings))
-	for k, s := range p.settings {
-		settings[k] = s
-	}
 	running := p.vm != nil
-	p.mu.Unlock()
-	if err := p.writeJSON("settings.json", settings); err != nil {
+	if err := p.writeJSON("settings.json", p.settings); err != nil {
+		if existed {
+			p.settings[key] = previous
+		} else {
+			delete(p.settings, key)
+		}
+		p.mu.Unlock()
 		return err
+	}
+	fn := p.onDataChange
+	p.mu.Unlock()
+	if fn != nil && previous != value {
+		fn()
 	}
 	if running && p.exports["setSetting"] {
 		return p.call("setSetting", map[string]string{"key": key, "value": value}, nil)

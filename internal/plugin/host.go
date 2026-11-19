@@ -175,18 +175,39 @@ func (p *Plugin) storageSet(v *vm) native {
 			return moejs.Undefined(), err
 		}
 		p.mu.Lock()
-		p.storage[moejs.Arg(args, 0).String()] = raw
+		key := moejs.Arg(args, 0).String()
+		before, exists := p.storage[key]
+		p.storage[key] = raw
 		err = p.writeJSON("storage.json", p.storage)
+		if err != nil {
+			if exists {
+				p.storage[key] = before
+			} else {
+				delete(p.storage, key)
+			}
+		}
 		p.mu.Unlock()
+		if err == nil {
+			p.dataChanged(key, before, raw)
+		}
 		return moejs.Undefined(), err
 	}
 }
 
 func (p *Plugin) storageRemove(_ *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	delete(p.storage, moejs.Arg(args, 0).String())
-	return moejs.Undefined(), p.writeJSON("storage.json", p.storage)
+	key := moejs.Arg(args, 0).String()
+	before, exists := p.storage[key]
+	delete(p.storage, key)
+	err := p.writeJSON("storage.json", p.storage)
+	if err != nil && exists {
+		p.storage[key] = before
+	}
+	p.mu.Unlock()
+	if err == nil {
+		p.dataChanged(key, before, nil)
+	}
+	return moejs.Undefined(), err
 }
 
 // waitForRedirect is the end of a browser sign-in: it listens on this machine

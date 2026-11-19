@@ -82,8 +82,8 @@ func TestPushPullAcrossDevices(t *testing.T) {
 	if got := read(t, b, "plugins/gdstudio/plugin.json"); got != `{"id":"gdstudio"}` {
 		t.Fatalf("the plugin didn't arrive: %s", got)
 	}
-	if got := read(t, b, "plugin-data/gdstudio/settings.json"); got != `{"source":"netease"}` {
-		t.Fatalf("the plugin's setup didn't arrive: %s", got)
+	if _, err := os.Stat(filepath.Join(b, "plugin-data/gdstudio/settings.json")); !os.IsNotExist(err) {
+		t.Fatal("plugin settings must be applied through the live data source", err)
 	}
 }
 

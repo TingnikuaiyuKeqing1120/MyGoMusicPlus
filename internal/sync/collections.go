@@ -15,6 +15,7 @@ import (
 // Collection contains only user-selected tracks and the metadata needed to
 // display them. Device folders, search caches and account data stay local.
 type Collection struct {
+	Recent    []string                   `json:"recent,omitempty"`
 	Likes     []string                   `json:"likes,omitempty"`
 	Playlists []List                     `json:"playlists,omitempty"`
 	Songs     map[string]json.RawMessage `json:"songs,omitempty"`
@@ -89,7 +90,7 @@ func mergeIDs(base, local, remote []string) []string {
 }
 
 func MergeCollection(base, local, remote Collection) Collection {
-	out := Collection{Likes: mergeIDs(base.Likes, local.Likes, remote.Likes)}
+	out := Collection{Likes: mergeIDs(base.Likes, local.Likes, remote.Likes), Recent: mergeIDs(nil, local.Recent, remote.Recent)}
 	b, bi := listMap(base.Playlists)
 	l, li := listMap(local.Playlists)
 	r, ri := listMap(remote.Playlists)
