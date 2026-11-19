@@ -27,6 +27,43 @@ func (tr syncTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r.Result(), nil
 }
 
+// A rejected desktop token stops Sync Now before data transfer and leaves the
+// local state available while the listener reauthorizes the device.
+func TestSyncNowRejectedSignIn(t *testing.T) {
+	previous := newSyncRepository
+	t.Cleanup(func() { newSyncRepository = previous })
+	calls := 0
+	newSyncRepository = func(token, repo string) *cloud.GitHub {
+		g := cloud.NewGitHub(token, repo)
+		g.Client.Transport = syncTransport{http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls++
+			if r.Method != "GET" || r.URL.Path != "/user" {
+				t.Errorf("authentication failure reached sync data: %s %s", r.Method, r.URL.Path)
+			}
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, `{"message":"Bad credentials"}`)
+		})}
+		return g
+	}
+	a := newTestApp()
+	a.settings.Quality = "lossless"
+	a.syncer.cfg = cloud.Config{Token: "rejected", Repo: "sync", Units: map[cloud.Unit]bool{cloud.UnitSettings: true, cloud.UnitPlaylists: true, cloud.UnitPlugins: true}}
+	ch := posts(a)
+	a.syncNow()
+	runPost(t, ch)
+	if a.syncer.busy || !a.syncer.authFailed || a.syncer.err == "" || a.toast == "" || !a.syncer.last.IsZero() || calls != 1 {
+		t.Fatalf("failed sync did not finish correctly: calls=%d busy=%v err=%q", calls, a.syncer.busy, a.syncer.err)
+	}
+	if a.settings.Quality != "lossless" || a.syncer.cfg.Token != "rejected" {
+		t.Fatal("authentication failure changed local state")
+	}
+	a.keepSyncing()
+	a.markSyncDirty()
+	if a.syncer.busy || a.syncer.dirty {
+		t.Fatal("automatic sync retried rejected credentials")
+	}
+}
+
 // The normal Sync Now entry point transfers a previously unknown plugin and
 // its live JSON data to an empty phone, then merges edits back to the desktop.
 func TestSyncNowGenericPluginRoundTrip(t *testing.T) {

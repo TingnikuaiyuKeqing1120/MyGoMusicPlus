@@ -122,8 +122,14 @@ func (a *app) pollDeviceFlow(gen int) {
 			json.Unmarshal([]byte(body), &res)
 			switch {
 			case res.Token != "":
+				previous := s.cfg.Token
 				s.cfg.Token = res.Token
-				a.saveSyncConfig()
+				if err := a.saveSyncConfig(); err != nil {
+					s.cfg.Token = previous
+					d.err = err.Error()
+					return
+				}
+				s.err = ""
 				s.device = nil
 				a.toast = T("Signed in to GitHub")
 			case res.Error == "authorization_pending":

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 )
@@ -20,6 +21,17 @@ type GitHub struct {
 	Client *http.Client
 
 	owner string
+}
+
+// GitHubError preserves the API's status and reason so callers can distinguish
+// a rejected sign-in from permissions, rate limits and server failures.
+type GitHubError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *GitHubError) Error() string {
+	return fmt.Sprintf("github: %s (%d)", e.Message, e.StatusCode)
 }
 
 // NewGitHub is a store for a token and a repository name.
@@ -39,7 +51,7 @@ func (g *GitHub) ensureOwner() error {
 		return err
 	}
 	if st != 200 {
-		return fmt.Errorf("github: the token didn't sign in (%d)", st)
+		return fmt.Errorf("github: unexpected account response (%d)", st)
 	}
 	g.owner = u.Login
 	return nil
@@ -50,7 +62,7 @@ func (g *GitHub) EnsureRepo() error {
 	if err := g.ensureOwner(); err != nil {
 		return err
 	}
-	st, err := g.api("GET", "/repos/"+g.owner+"/"+g.Repo, nil, nil)
+	st, err := g.api("GET", "/repos/"+g.owner+"/"+g.Repo, nil, nil, http.StatusNotFound)
 	if err != nil {
 		return err
 	}
@@ -83,7 +95,7 @@ func (g *GitHub) ReadVersion(path string) ([]byte, string, error) {
 		return nil, "", err
 	}
 	var f struct{ Content, Encoding, Sha string }
-	st, err := g.api("GET", g.contentsPath(path), nil, &f)
+	st, err := g.api("GET", g.contentsPath(path), nil, &f, http.StatusNotFound)
 	if err != nil {
 		return nil, "", err
 	}
@@ -130,7 +142,7 @@ func (g *GitHub) PutVersion(path string, b []byte, rev string) error {
 	if rev != "" {
 		body["sha"] = rev
 	}
-	st, err := g.api("PUT", g.contentsPath(path), body, nil)
+	st, err := g.api("PUT", g.contentsPath(path), body, nil, http.StatusConflict, http.StatusUnprocessableEntity)
 	if err != nil {
 		return err
 	}
@@ -151,7 +163,7 @@ func (g *GitHub) contentsPath(path string) string {
 	return "/repos/" + url.PathEscape(g.owner) + "/" + url.PathEscape(g.Repo) + "/contents/" + strings.Join(parts, "/")
 }
 
-func (g *GitHub) api(method, path string, body any, out any) (int, error) {
+func (g *GitHub) api(method, path string, body any, out any, allowedStatuses ...int) (int, error) {
 	var rd io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -178,6 +190,17 @@ func (g *GitHub) api(method, path string, body any, out any) (int, error) {
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return resp.StatusCode, err
+	}
+	if resp.StatusCode >= 400 {
+		if slices.Contains(allowedStatuses, resp.StatusCode) {
+			return resp.StatusCode, nil
+		}
+		var detail struct{ Message string }
+		json.Unmarshal(b, &detail)
+		if detail.Message == "" {
+			detail.Message = http.StatusText(resp.StatusCode)
+		}
+		return resp.StatusCode, &GitHubError{StatusCode: resp.StatusCode, Message: detail.Message}
 	}
 	if out != nil && len(b) > 0 {
 		if err := json.Unmarshal(b, out); err != nil {

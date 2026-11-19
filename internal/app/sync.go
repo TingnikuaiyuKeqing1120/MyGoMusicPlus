@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"maps"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -38,6 +39,7 @@ type syncState struct {
 	phase       string
 	done, total int
 	busy        bool
+	authFailed  bool
 	err         string
 	last        time.Time // when syncing last came through
 	dirty       bool      // a change here awaits its push
@@ -49,12 +51,17 @@ type syncState struct {
 }
 
 // saveSyncConfig keeps the choices on this device.
-func (a *app) saveSyncConfig() {
+func (a *app) saveSyncConfig() error {
 	if err := writeSyncConfig(a.syncer.cfg); err != nil {
 		a.syncer.err = err.Error()
-		return
+		return err
+	}
+	if a.syncer.cfg.Token != a.syncer.saved.Token {
+		a.syncer.authFailed = false
+		a.syncer.err = ""
 	}
 	a.syncer.saved = a.syncer.cfg
+	return nil
 }
 
 // syncConfigPath is where the token and the choices stay, on this device
@@ -83,7 +90,7 @@ func writeSyncConfig(c sync.Config) error {
 // keepSyncing looks for what changed elsewhere now and then, for as long as
 // the app runs, syncing only while it's set up and a kind is on.
 func (a *app) keepSyncing() {
-	if a.syncer.cfg.Enabled() {
+	if a.syncer.cfg.Enabled() && !a.syncer.authFailed {
 		a.syncNow()
 	}
 	time.AfterFunc(syncEvery, func() { a.post(a.keepSyncing) })
@@ -92,7 +99,7 @@ func (a *app) keepSyncing() {
 // syncNow pulls what changed elsewhere, then pushes what changed here.
 func (a *app) syncNow() {
 	s := &a.syncer
-	if !s.cfg.Enabled() || s.busy {
+	if !s.cfg.Enabled() || s.busy || s.device != nil {
 		return
 	}
 	s.busy, s.dirty, s.err, s.summary = true, false, "", ""
@@ -203,8 +210,15 @@ func (a *app) syncDocuments(root string, store *sync.GitHub, cfg sync.Config, pr
 func (a *app) endSync(err error) {
 	s := &a.syncer
 	s.busy = false
+	s.authFailed = false
 	if err != nil {
 		s.err = err.Error()
+		var githubErr *sync.GitHubError
+		if errors.As(err, &githubErr) && githubErr.StatusCode == http.StatusUnauthorized {
+			s.authFailed = true
+			s.err = T("GitHub rejected this device's sign-in (401). Sign in with GitHub again, then sync.")
+			a.toast = T("GitHub sign-in is invalid. Open Settings → Sync to sign in again.")
+		}
 		return
 	}
 	s.last = time.Now()
@@ -216,13 +230,13 @@ func (a *app) endSync(err error) {
 // markSyncDirty notes a change here, to push once a few have gathered.
 func (a *app) markSyncDirty() {
 	s := &a.syncer
-	if !s.cfg.Enabled() {
+	if !s.cfg.Enabled() || s.authFailed {
 		return
 	}
 	s.dirty = true
 	time.AfterFunc(syncDebounce, func() {
 		a.post(func() {
-			if s.dirty {
+			if s.dirty && !s.authFailed {
 				a.syncNow()
 			}
 		})

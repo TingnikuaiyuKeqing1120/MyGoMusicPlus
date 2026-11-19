@@ -45,7 +45,7 @@ func (a *app) syncSettings(c *ui.Context, row settingsRow, p palette) {
 	}
 	row(T("Sync Now"), syncStatusDesc(s), func() {
 		ui.Column(c).MaxWidthPercent(100).Gap(5).Children(func() {
-			if ui.Button(c.Key("sync-now"), T("Sync Now")).Disabled(s.busy || !s.cfg.Enabled()).Clicked() {
+			if ui.Button(c.Key("sync-now"), T("Sync Now")).Disabled(s.busy || s.device != nil || !s.cfg.Enabled()).Clicked() {
 				a.syncNow()
 			}
 			if s.busy && s.total > 0 {
@@ -66,7 +66,9 @@ func (a *app) deviceSignIn(c *ui.Context, row settingsRow, p palette) {
 	d := s.device
 	if d == nil {
 		desc := T("Authorize through GitHub's device page instead of writing a token")
-		if s.cfg.Token != "" {
+		if s.authFailed {
+			desc = T("GitHub rejected this device's sign-in. Sign in again to resume sync.")
+		} else if s.cfg.Token != "" {
 			desc = T("A GitHub token is set for sync on this device.")
 		}
 		row(T("GitHub Sign-in"), desc, func() {
