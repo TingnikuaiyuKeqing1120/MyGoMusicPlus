@@ -2,7 +2,7 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.5.1] - 2026-11-21
 
 - Desktop and Android GitHub sync retain rotating refresh tokens, renew expiring sign-ins before API requests and retry a rejected request once. Temporary renewal failures remain retryable, and rejected refresh tokens prompt for sign-in.
 - Sync credentials are saved atomically and flushed to persistent storage before sign-in completes. A failed save retains newly rotated credentials for a later persistence retry.
