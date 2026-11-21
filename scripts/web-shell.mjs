@@ -18,6 +18,7 @@ await cp(join(root, "web", "fs-bridge.js"), join(out, "fs-bridge.js"));
 await cp(join(root, "web", "media-bridge.js"), join(out, "media-bridge.js"));
 await cp(join(root, "web", "music-folders.js"), join(out, "music-folders.js"));
 await cp(join(root, "web", "touch-scroll.js"), join(out, "touch-scroll.js"));
+await cp(join(root, "web", "native-playback.js"), join(out, "native-playback.js"));
 
 const html = await readFile(join(src, "index.html"), "utf8");
 const wasm = (html.match(/fetch\("([^"]+\.wasm)"\)/) || [])[1];
@@ -31,7 +32,7 @@ if (!html.includes(wasmScript) || !boot.test(html)) {
 const patched = html
   .replace("</head>", '<meta name="color-scheme" content="light dark">\n</head>')
   .replace(wasmScript,
-    '<script src="music-folders.js"></script>\n    <script src="fs-bridge.js"></script>\n    <script src="media-bridge.js"></script>\n    <script src="touch-scroll.js"></script>\n    <script src="wasm_exec.js"></script>')
+    '<script src="music-folders.js"></script>\n    <script src="fs-bridge.js"></script>\n    <script src="media-bridge.js"></script>\n    <script src="native-playback.js"></script>\n    <script src="touch-scroll.js"></script>\n    <script src="wasm_exec.js"></script>')
   .replace(boot,
     `(async () => {
         await globalThis.__mygoFsReady;

@@ -20,8 +20,8 @@ if [ ! -d android-sdk/cmdline-tools/latest ]; then
 fi
 echo "CMDTOOLS_DONE"
 
-if [ ! -d gradle-8.7 ]; then
-  curl -sL -o gradle.zip "https://services.gradle.org/distributions/gradle-8.7-bin.zip" || exit 1
+if [ ! -d gradle-8.11.1 ]; then
+  curl -fL --retry 3 -o gradle.zip "https://services.gradle.org/distributions/gradle-8.11.1-bin.zip" || exit 1
   unzip -q gradle.zip || exit 1
 fi
 echo "GRADLE_DONE"
@@ -30,6 +30,6 @@ export JAVA_HOME='E:\Program\tools\jdk17'
 SDK='E:\Program\tools\android-sdk'
 SM="$T/android-sdk/cmdline-tools/latest/bin/sdkmanager.bat"
 yes | "$SM" --sdk_root="$SDK" --licenses >/dev/null 2>&1
-"$SM" --sdk_root="$SDK" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || exit 1
+"$SM" --sdk_root="$SDK" "platforms;android-36" "build-tools;35.0.0" "platform-tools" || exit 1
 echo "SDK_DONE"
 echo "TOOLCHAIN_READY"

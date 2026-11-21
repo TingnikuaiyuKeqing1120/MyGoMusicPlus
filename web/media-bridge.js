@@ -7,6 +7,7 @@
 // With no native bridge present (plain browser) everything is a no-op.
 (function () {
   "use strict";
+  if (globalThis.AndroidBridge?.hasNativePlayback?.()) return;
   const ms = navigator.mediaSession;
   if (!ms) return;
   const bridge = () => globalThis.AndroidBridge || null;

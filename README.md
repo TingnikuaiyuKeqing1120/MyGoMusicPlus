@@ -1,6 +1,6 @@
 # MyGo Music Plus
 
-MyGo Music Plus plays local music and plugin sources. The Windows player has a native Go UI built with MyGo. Android runs the same player as WebAssembly in a Kotlin WebView shell. The Web player can also be built for a browser. [MyGo framework](https://github.com/egoist/mygo)
+MyGo Music Plus plays local music and plugin sources. The Windows player has a native Go UI built with MyGo. Android shares the WebAssembly interface and Go plugin runtime, with Media3 ExoPlayer handling audio in an Android foreground service. The Web player can also be built for a browser. [MyGo framework](https://github.com/egoist/mygo)
 
 Download the Windows installer or standalone EXE, a macOS or Linux package, or the Android APK from the Plus release page. [Download MyGo Music Plus](https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/releases/latest)
 

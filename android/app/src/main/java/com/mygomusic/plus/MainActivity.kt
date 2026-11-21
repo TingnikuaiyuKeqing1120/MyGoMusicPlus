@@ -17,9 +17,8 @@ import android.widget.Toast
 import androidx.core.view.WindowCompat
 import androidx.webkit.WebViewAssetLoader
 
-// MainActivity hosts the MyGo web build (wasm) in a WebView. The web shell's
-// fs-bridge keeps data in OPFS; media-bridge forwards MediaSession to
-// PlaybackService so playback survives backgrounding.
+// MainActivity hosts the MyGo interface and plugin runtime. NativePlayback
+// connects it to the service that owns audio decoding and MediaSession.
 class MainActivity : Activity() {
 
     private lateinit var web: WebView
@@ -38,7 +37,7 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        web = WebView(this)
+        web = PlayerWebRuntime.obtain(this)
         // Android 15 draws edge-to-edge; pad a wrapper (the WebView itself
         // ignores padding) so the app's top bar and player clear the system
         // bars.
@@ -62,33 +61,27 @@ class MainActivity : Activity() {
             allowContentAccess = true
             mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
-        web.addJavascriptInterface(Bridge(this) { runOnUiThread { chooseMusicFolder() } }, "AndroidBridge")
+        web.addJavascriptInterface(Bridge(applicationContext) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { PlayerWebRuntime.pickMusicFolder() }
+        }, "AndroidBridge")
         // Serve assets over a virtual https domain: fetch() and OPFS need a
         // secure context, which file:///android_asset is not.
-        musicFolders = MusicFolders(contentResolver)
+        musicFolders = MusicFolders(applicationContext.contentResolver)
         assetLoader = WebViewAssetLoader.Builder()
-            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(applicationContext))
             .addPathHandler("/native-music/", musicFolders)
             .addPathHandler("/native-github/", GitHubArchives())
             .build()
-        WebLink.control = { action ->
-            runOnUiThread {
-                web.evaluateJavascript("globalThis.__mediaControl && globalThis.__mediaControl('$action')", null)
-            }
-        }
+        PlayerWebRuntime.useAssets(assetLoader)
         WebLink.device = { id, json ->
-            runOnUiThread {
-                val js = "globalThis.__mygoDeviceResult && __mygoDeviceResult($id, " +
-                    org.json.JSONObject.quote(json) + ")"
-                web.evaluateJavascript(js, null)
-            }
+            val js = "globalThis.__mygoDeviceResult && __mygoDeviceResult($id, " +
+                org.json.JSONObject.quote(json) + ")"
+            PlayerWebRuntime.evaluate(js)
         }
         WebLink.install = { state ->
-            runOnUiThread {
-                val js = "globalThis.__mygoInstallState && __mygoInstallState(" +
-                    org.json.JSONObject.quote(state) + ")"
-                web.evaluateJavascript(js, null)
-            }
+            val js = "globalThis.__mygoInstallState && __mygoInstallState(" +
+                org.json.JSONObject.quote(state) + ")"
+            PlayerWebRuntime.evaluate(js)
         }
         web.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(v: WebView, req: WebResourceRequest): WebResourceResponse? =
@@ -141,10 +134,11 @@ class MainActivity : Activity() {
                 }
             }.start()
         }
-        web.loadUrl("https://appassets.androidplatform.net/assets/web/index.html")
+        if (web.url == null) web.loadUrl("https://appassets.androidplatform.net/assets/web/index.html")
+        else deliverLink(intent)
     }
 
-    private fun chooseMusicFolder() {
+    internal fun chooseMusicFolder() {
         val picker = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
         )
@@ -249,13 +243,16 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         web.onResume()
+        PlayerWebRuntime.visibility(this, true)
+    }
+
+    override fun onPause() {
+        PlayerWebRuntime.visibility(this, false)
+        super.onPause()
     }
 
     override fun onDestroy() {
-        WebLink.control = null
-        WebLink.device = null
-        WebLink.install = null
-        web.destroy()
+        PlayerWebRuntime.detach(this)
         super.onDestroy()
     }
 }

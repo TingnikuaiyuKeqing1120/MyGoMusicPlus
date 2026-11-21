@@ -12,9 +12,8 @@ import android.webkit.JavascriptInterface
 internal fun Configuration.isNightMode(): Boolean =
     (uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
-// Bridge is the JS->native surface the web media-bridge calls. It forwards
-// playback metadata/state/position to PlaybackService (notification, lock
-// screen, audio focus) and offers share / open-external.
+// Bridge exposes native playback, file access and Android system actions to
+// the bundled web application.
 class Bridge(private val ctx: Context, private val chooseMusicFolder: () -> Unit) {
 
     @JavascriptInterface
@@ -35,19 +34,48 @@ class Bridge(private val ctx: Context, private val chooseMusicFolder: () -> Unit
     @JavascriptInterface
     fun hasGitHubArchiveLoader(): Boolean = true
 
-    private fun toService(key: String, value: String) {
-        val i = Intent(ctx, PlaybackService::class.java).putExtra(key, value)
-        ctx.startForegroundService(i)
+    @JavascriptInterface
+    fun hasNativePlayback(): Boolean = true
+
+    @JavascriptInterface
+    fun nativePlaybackSnapshot(): String = NativePlayback.service?.snapshot ?: "{}"
+
+    @JavascriptInterface
+    fun nativeCacheCommand(text: String): String {
+        val command = org.json.JSONObject(text)
+        val cache = NativeCache.get(ctx)
+        when (command.getString("action")) {
+            "limit" -> cache.configure(command.optLong("limit"))
+            "clear" -> cache.clear()
+        }
+        return cache.status().toString()
     }
 
     @JavascriptInterface
-    fun onMetadata(json: String) = toService("meta", json)
+    fun nativePlaybackCommand(json: String) = NativePlayback.command(ctx, json)
 
     @JavascriptInterface
-    fun onPlaybackState(playing: String) = toService("playing", playing)
+    fun nativePlaybackResolved(json: String) = NativePlayback.resolved(json)
 
     @JavascriptInterface
-    fun onPosition(json: String) = toService("pos", json)
+    fun nativeAudioBegin(hash: String, size: Long, type: String): String =
+        PlayerWebRuntime.audioFiles().begin(hash, size, type)
+
+    @JavascriptInterface
+    fun nativeAudioWrite(token: String, data: String): String = PlayerWebRuntime.audioFiles().write(token, data)
+
+    @JavascriptInterface
+    fun nativeAudioCommit(token: String): String = PlayerWebRuntime.audioFiles().commit(token)
+
+    @JavascriptInterface
+    fun nativeAudioAbort(token: String) = PlayerWebRuntime.audioFiles().abort(token)
+
+    @JavascriptInterface
+    fun nativeDocumentUri(tree: String, document: String): String {
+        val uri = Uri.parse(tree)
+        require(ctx.contentResolver.persistedUriPermissions.any { it.isReadPermission && it.uri == uri })
+        return android.provider.DocumentsContract.buildDocumentUriUsingTree(uri, document).toString()
+    }
 
     @JavascriptInterface
     fun openExternal(url: String) {

@@ -69,7 +69,10 @@
     }
     let block = new Uint8Array();
     let blockStart = -1;
-    return { ...entry, async read(at, length) {
+    const decode = token => new TextDecoder().decode(Uint8Array.from(atob(token.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)));
+    const treeUri = decode(tree);
+    const nativeUri = bridgeDocumentUri(treeUri, decode(entry.id));
+    return { ...entry, nativeUri, async read(at, length) {
       if (at >= entry.size || !length) return new Uint8Array();
       if (at < blockStart || at + length > blockStart + block.length) {
         const count = Math.min(256 * 1024, Math.max(64 * 1024, length), entry.size - at);
@@ -79,6 +82,10 @@
       }
       return block.subarray(at - blockStart, at - blockStart + length);
     } };
+  }
+
+  function bridgeDocumentUri(treeUri, documentId) {
+    return globalThis.AndroidBridge?.nativeDocumentUri?.(treeUri, documentId);
   }
 
   let database;

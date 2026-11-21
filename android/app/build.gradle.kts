@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.mygomusic.plus"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.mygomusic.plus"
@@ -33,6 +33,8 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.media:media:1.7.0")
+    implementation("androidx.media3:media3-exoplayer:1.11.1")
+    implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
+    implementation("androidx.media3:media3-session:1.11.1")
     implementation("androidx.webkit:webkit:1.11.0")
 }

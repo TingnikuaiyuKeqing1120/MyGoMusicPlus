@@ -21,26 +21,31 @@ func newSongCache(mb int) *player.Cache {
 
 // applyCacheLimit gives the cache the limit the settings say.
 func (a *app) applyCacheLimit() {
-	if cache := a.pl.Cache; cache != nil {
-		limit := int64(a.settings.CacheMB) << 20
-		go func() {
+	limit := int64(a.settings.CacheMB) << 20
+	cache := a.pl.Cache
+	go func() {
+		if cache != nil {
 			cache.SetLimit(limit)
-			a.measureCache()
-		}()
-	}
+		}
+		a.pl.NativeCache("limit", limit)
+		a.measureCache()
+	}()
 }
 
 // measureCache finds how much the cache takes, on a goroutine, for the
 // settings to show.
 func (a *app) measureCache() {
 	cache := a.pl.Cache
-	if cache == nil {
-		return
-	}
 	go func() {
-		cache.Refresh()
-		n := cache.Size()
-		count := int64(cache.Count())
+		var n, count int64
+		if cache != nil {
+			cache.Refresh()
+			n, count = cache.Size(), int64(cache.Count())
+		}
+		if size, tracks, ok := a.pl.NativeCache("status", 0); ok {
+			n += size
+			count += int64(tracks)
+		}
 		a.post(func() {
 			a.cacheUsed = n
 			a.cacheCount = count
@@ -52,20 +57,22 @@ func (a *app) measureCache() {
 }
 
 func (a *app) clearCache() {
-	if cache := a.pl.Cache; cache != nil {
-		a.cacheUsed = 0
-		a.cacheCount = 0
-		go func() {
+	a.cacheUsed = 0
+	a.cacheCount = 0
+	cache := a.pl.Cache
+	go func() {
+		if cache != nil {
 			cache.Clear()
-			a.measureCache()
-		}()
-	}
+		}
+		a.pl.NativeCache("clear", 0)
+		a.measureCache()
+	}()
 }
 
 // isOffline reports whether tr is kept in the song cache, to play without the
 // network, at the quality the settings say or a better one.
 func (a *app) isOffline(tr *music.Track) bool {
-	return a.pl.Cache.Cached(tr.Source, tr.ID, a.settings.Quality)
+	return a.pl.Cached(tr.Source, tr.ID, a.settings.Quality)
 }
 
 // cacheUsage says how many songs the cache keeps and how much they take, once

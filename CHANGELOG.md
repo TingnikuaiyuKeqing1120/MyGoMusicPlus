@@ -4,6 +4,8 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 ## Unreleased
 
+- Android audio uses Media3 ExoPlayer in a foreground service, including streaming, downloaded files, authorized music folders, playback caching, normalization and spectrum levels. System media controls and prepared queue transitions run independently of the WebView interface.
+- Web and Android keep the downloaded-song index and playback session in the persistent profile directory, so newly saved downloads and playback positions can be restored after restarting.
 - Picking the current song keeps its position and resumes it if paused, including near the end. Switching between its online entry and saved download carries the position into the selected audio source.
 
 ## [0.4.1] - 2026-11-19

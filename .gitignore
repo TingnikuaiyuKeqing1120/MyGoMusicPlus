@@ -11,6 +11,7 @@ mygo_windows_*.syso
 /android/app/src/main/assets/web/*
 !/android/app/src/main/assets/web/.gitkeep
 /android/.gradle/
+/android/.kotlin/
 /android/build/
 /android/app/build/
 /android/local.properties

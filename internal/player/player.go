@@ -64,7 +64,7 @@ type Player struct {
 	track   *music.Track
 	out     *audio.Player
 	stream  stream
-	watch   *watched // stream, as out plays it
+	watch   *watched      // stream, as out plays it
 	info    *music.Stream // what the current track streams
 	fade    fader
 	gain    float64 // the current track's normalizing gain
@@ -99,12 +99,32 @@ type Player struct {
 	recorded string // the track last told its source it played
 
 	ahead *ahead // the next track's audio, asked for before its turn
+
+	native           nativePlayback
+	nativeActive     bool
+	nativeState      nativeState
+	nativeAt         time.Time
+	nativeStreams    map[int]*music.Stream
+	nativeErrors     map[int]error
+	nativeCached     map[string]bool
+	nativeQuality    string
+	nativeFailed     bool
+	nativeDirection  int
+	nativeStep       int
+	nativeSkipped    int
+	nativeWasPlaying bool
 }
 
 func New(post func(func())) *Player {
 	p := &Player{post: post, at: -1, volume: 0.8, gain: 1}
 	p.after = func(d time.Duration, fn func()) { time.AfterFunc(d, fn) }
 	p.now = time.Now
+	if makeNativePlayback != nil {
+		p.native = makeNativePlayback(
+			func(s nativeState) { p.post(func() { p.nativeChanged(s) }) },
+			func(generation, slot int) { p.post(func() { p.nativeResolve(generation, slot) }) },
+		)
+	}
 	// Music, mixed far enough ahead to play on while macOS keeps the app
 	// waiting, as it does while its appearance changes.
 	audio.SetLatency(audio.LatencyPlayback)
@@ -131,6 +151,9 @@ func New(post func(func())) *Player {
 func (p *Player) sync() {
 	if p.Changed != nil {
 		defer p.Changed()
+	}
+	if p.nativeActive {
+		return
 	}
 	if p.track == nil {
 		mygo.NowPlaying.Clear()
@@ -262,11 +285,14 @@ func (p *Player) EndRadio() {
 		return
 	}
 	awaiting := p.awaiting
+	position := p.Position()
+	renumbered := false
 	p.endRadio()
 	if p.at >= 0 && p.at+1 < len(p.order) {
 		kept := make([]music.Track, p.at+1)
 		for i, k := range p.order[:p.at+1] {
 			kept[i] = p.queue[k]
+			renumbered = renumbered || i != k
 		}
 		p.queue, p.order = kept, make([]int, len(kept))
 		for i := range p.order {
@@ -278,6 +304,13 @@ func (p *Player) EndRadio() {
 		p.playing = false
 		p.sync()
 	}
+	if p.nativeActive && renumbered {
+		// Compaction changes native slot IDs. Rebuild from the same position
+		// so an old resolved slot cannot become a different song.
+		p.loadSkipping(p.at, 0, stay, p.playing, position)
+		return
+	}
+	p.nativeCommand("queue")
 }
 
 func (p *Player) endRadio() {
@@ -335,6 +368,7 @@ func (p *Player) appendTracks(tracks []music.Track) {
 			p.queue = append(p.queue, t)
 		}
 	}
+	p.nativeCommand("queue")
 }
 
 // shuffleOrder puts the order in a random one with first at its head, or
@@ -363,9 +397,13 @@ func (p *Player) ToggleShuffle() {
 		}
 		p.at = cur
 	}
+	p.nativeCommand("queue")
 }
 
-func (p *Player) CycleRepeat() { p.repeat = (p.repeat + 1) % 3 }
+func (p *Player) CycleRepeat() {
+	p.repeat = (p.repeat + 1) % 3
+	p.nativeCommand("options")
+}
 
 // Current returns the track playing or loading, or nil.
 func (p *Player) Current() *music.Track { return p.track }
@@ -384,7 +422,9 @@ func (p *Player) Loading() bool {
 }
 
 // Ready reports whether the current track has loaded, to play.
-func (p *Player) Ready() bool { return p.out != nil || p.remote != nil && p.remote.started }
+func (p *Player) Ready() bool {
+	return p.nativeActive && p.nativeState.Ready || p.out != nil || p.remote != nil && p.remote.started
+}
 
 // Err returns why the current track did not play, or "".
 func (p *Player) Err() string { return p.err }
@@ -401,6 +441,9 @@ func (p *Player) Lyrics() ([]lyrics.Line, bool) { return p.lyrics, p.lyricsLoade
 // Downloaded returns the share of the current track downloaded so far, or
 // false before it has started to.
 func (p *Player) Downloaded() (float64, bool) {
+	if p.nativeActive {
+		return p.nativeState.Buffered, true
+	}
 	if p.stream == nil {
 		return 0, false
 	}
@@ -414,6 +457,15 @@ func (p *Player) PlayOrder() ([]int, int) { return p.order, p.at }
 
 func (p *Player) Next() {
 	if len(p.order) == 0 {
+		return
+	}
+	if p.nativeActive {
+		if p.at+1 >= len(p.order) && p.feed != nil {
+			p.awaitFeed()
+			return
+		}
+		p.nativeStep = forward
+		p.nativeCommand("next")
 		return
 	}
 	at := p.at + 1
@@ -433,6 +485,11 @@ func (p *Player) Next() {
 // pressing twice.
 func (p *Player) Prev() {
 	if len(p.order) == 0 {
+		return
+	}
+	if p.nativeActive {
+		p.nativeStep = back
+		p.nativeCommand("previous")
 		return
 	}
 	at := p.at - 1
@@ -459,6 +516,18 @@ func (p *Player) Jump(i int) {
 
 // TogglePlay pauses, fading out, or plays, fading in.
 func (p *Player) TogglePlay() {
+	if p.nativeActive {
+		if p.nativeFailed {
+			p.loadSkipping(p.at, 0, stay, true, p.nativePosition())
+			return
+		}
+		p.playing = !p.playing
+		p.nativeCommand("play")
+		if p.Changed != nil {
+			p.Changed()
+		}
+		return
+	}
 	if p.remote != nil && p.remote.started {
 		p.remoteToggle()
 		return
@@ -509,6 +578,14 @@ const seekGap = 30 * time.Millisecond
 // which the audio player fades over a few milliseconds, rather than
 // cutting from one sound to the other with a click.
 func (p *Player) Seek(t time.Duration) {
+	if p.nativeActive {
+		p.native.command(nativeCommand{Action: "seek", Generation: p.gen, Position: max(t, 0).Milliseconds()})
+		p.nativeState.Position, p.nativeAt = max(t, 0).Milliseconds(), p.now()
+		if p.Changed != nil {
+			p.Changed()
+		}
+		return
+	}
 	if p.remote != nil && p.remote.started {
 		p.remoteSeek(t)
 		return
@@ -558,6 +635,10 @@ func (p *Player) SetVolume(v float64) {
 // applyGain sets the volume of what plays: the listener's, which the ear
 // hears in powers, and the track's gain, if normalizing.
 func (p *Player) applyGain() {
+	if p.nativeActive {
+		p.nativeCommand("options")
+		return
+	}
 	g := p.volume * p.volume
 	if p.Normalize != nil && p.Normalize() {
 		g *= p.gain
@@ -584,6 +665,8 @@ func normGain(st *music.Stream) float64 {
 
 func (p *Player) Position() time.Duration {
 	switch {
+	case p.nativeActive:
+		return p.nativePosition()
 	case p.remote != nil && p.remote.started:
 		return p.remotePosition()
 	case p.out == nil:
@@ -596,6 +679,8 @@ func (p *Player) Position() time.Duration {
 
 func (p *Player) Duration() time.Duration {
 	switch {
+	case p.nativeActive && p.nativeState.Duration > 0:
+		return time.Duration(p.nativeState.Duration) * time.Millisecond
 	case p.track == nil:
 		return 0
 	case p.remote != nil && p.remote.duration > 0:
@@ -608,6 +693,9 @@ func (p *Player) Duration() time.Duration {
 
 // Levels returns the spectrum of what plays now.
 func (p *Player) Levels() ([Bands]float32, bool) {
+	if p.nativeActive {
+		return p.nativeState.Bands, p.nativeState.Playing
+	}
 	if p.stream == nil || p.out == nil || !p.playing {
 		return [Bands]float32{}, false
 	}
@@ -617,6 +705,10 @@ func (p *Player) Levels() ([Bands]float32, bool) {
 }
 
 func (p *Player) stop() {
+	if p.nativeActive {
+		p.nativeCommand("stop")
+		p.nativeActive = false
+	}
 	if out := p.out; out != nil {
 		// Paused first, it fades out over a few milliseconds, rather than
 		// stopping with a click.
@@ -702,6 +794,22 @@ func (p *Player) loadSkipping(at, skipped, dir int, play bool, from time.Duratio
 		p.loadRemote(gen, src, at, skipped, dir, play, from)
 		return
 	}
+	if p.native != nil {
+		p.dropAhead()
+		p.nativeActive, p.nativeDirection, p.nativeSkipped = true, dir, skipped
+		p.nativeStreams = make(map[int]*music.Stream)
+		p.nativeErrors = make(map[int]error)
+		p.nativeFailed = false
+		p.nativeStep = 0
+		p.nativeQuality = music.Qualities[len(music.Qualities)/2]
+		if p.Quality != nil {
+			p.nativeQuality = p.Quality()
+		}
+		p.nativeState = nativeState{Generation: gen, Slot: p.order[at], Position: from.Milliseconds(), WantPlay: play, Buffering: play}
+		p.nativeAt = p.now()
+		p.nativeCommand("queue")
+		return
+	}
 	quality := music.Qualities[len(music.Qualities)/2]
 	if p.Quality != nil {
 		quality = p.Quality()
@@ -765,7 +873,7 @@ func (p *Player) loadCover(gen int, t *music.Track) {
 		cover, err := music.Fetch(music.SizedImage(url, 600))
 		if err == nil {
 			p.post(func() {
-				if gen == p.gen {
+				if gen == p.gen && p.track != nil && p.track.Source == t.Source && p.track.ID == t.ID {
 					p.announce(t, cover)
 				}
 			})
@@ -783,7 +891,7 @@ func (p *Player) loadLyrics(gen int, src music.Source, t music.Track) {
 			}
 		}
 		p.post(func() {
-			if gen == p.gen {
+			if gen == p.gen && p.track != nil && p.track.Source == t.Source && p.track.ID == t.ID {
 				p.lyrics = lines
 				p.lyricsLoaded = true
 			}
