@@ -187,12 +187,15 @@ func TestPhonePlaylistSyncSwitch(t *testing.T) {
 	onWeb = true
 	t.Cleanup(func() { onWeb = wasWeb })
 	a := newTestApp()
+	ch := posts(a)
 	a.settingsWeb, a.settingsPage = true, "sync"
 	a.syncer.cfg.Units = map[sync.Unit]bool{}
 	tt := ui.NewTester(a.view, 360, 1000)
 	settled(tt)
 	for _, want := range []bool{true, false} {
 		clickSettingRole(t, tt, ui.RoleSwitch, T("Sync Playlists"))
+		tt.Frame()
+		until(t, ch, func() bool { return !a.syncer.saving })
 		tt.Frame()
 		if a.syncer.cfg.Units[sync.UnitPlaylists] != want || loadSyncConfig().Units[sync.UnitPlaylists] != want {
 			t.Fatalf("wanted switch %v", want)
@@ -208,6 +211,7 @@ func TestPhoneSyncProgress(t *testing.T) {
 	a := newTestApp()
 	a.settingsWeb, a.settingsPage = true, "sync"
 	a.syncer.cfg = sync.Config{Token: "fixture", Repo: "fixture", Units: map[sync.Unit]bool{sync.UnitPlaylists: true}}
+	a.syncer.saved = a.syncer.cfg
 	a.syncer.busy = true
 	a.syncer.phase = "Merging playlists and likes"
 	a.syncer.done, a.syncer.total = 1, 2

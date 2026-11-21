@@ -100,3 +100,35 @@ test("an installed plugin survives a fresh boot after moving its staging tree", 
   assert.equal(await contents(call, "/plugins/gdstudio/plugin.json"), "new manifest");
   assert.equal(await contents(call, "/plugins/gdstudio/locales"), "changed shape");
 });
+
+// Credential rotation must reach OPFS at its final name before sign-in reports a saved pair.
+test("sync credentials survive immediate reboot after atomic replacement", async () => {
+  const root = directory();
+  let call = await boot(root);
+  await write(call, "/sync.json", "old-access old-refresh");
+  await syncDir(call, "/");
+  await write(call, "/.sync-stage", "new-access new-refresh");
+  await syncDir(call, "/.sync-stage");
+  await call("rename", "/.sync-stage", "/sync.json");
+  await syncDir(call, "/sync.json");
+
+  call = await boot(root);
+  assert.equal(await contents(call, "/sync.json"), "new-access new-refresh");
+  await assert.rejects(call("stat", "/.sync-stage"), { code: "ENOENT" });
+});
+
+// A failed credential flush is observable and can be retried without losing the in-memory rotated pair.
+test("failed credential persistence retries the pending pair", async () => {
+  const root = directory();
+  const handle = await root.getFileHandle("sync.json", { create: true });
+  const createWritable = handle.createWritable;
+  handle.createWritable = async () => { throw new DOMException("full", "QuotaExceededError"); };
+  let call = await boot(root);
+  await write(call, "/sync.json", "new-access new-refresh");
+  await assert.rejects(syncDir(call, "/sync.json"), { code: "EIO" });
+  assert.equal(await contents(call, "/sync.json"), "new-access new-refresh");
+  handle.createWritable = createWritable;
+  await syncDir(call, "/sync.json");
+  call = await boot(root);
+  assert.equal(await contents(call, "/sync.json"), "new-access new-refresh");
+});

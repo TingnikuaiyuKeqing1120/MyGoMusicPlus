@@ -189,8 +189,8 @@ func (a *app) boot() {
 	a.keepCheckingPlugins()
 	a.syncer.cfg = loadSyncConfig()
 	a.syncer.saved = a.syncer.cfg
-	a.keepSyncing()
 	useDeviceFlow()
+	a.keepSyncing()
 	webBoot(a)
 	a.startLibrary(a.library)
 	a.restoreSession()

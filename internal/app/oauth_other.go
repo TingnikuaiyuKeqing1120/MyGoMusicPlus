@@ -39,4 +39,11 @@ func useDeviceFlow() {
 			"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 		})
 	}
+	deviceRefresh = func(clientID, refreshToken string) (string, error) {
+		return post("oauth/access_token", url.Values{
+			"client_id":     {clientID},
+			"refresh_token": {refreshToken},
+			"grant_type":    {"refresh_token"},
+		})
+	}
 }

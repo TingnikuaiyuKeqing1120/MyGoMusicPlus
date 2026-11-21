@@ -37,9 +37,12 @@ var Units = []Unit{UnitSettings, UnitPlaylists, UnitPlugins}
 // Config is what the listener set up: their token, the repository's name
 // under their account, and which kinds sync.
 type Config struct {
-	Token string        `json:"token"`
-	Repo  string        `json:"repo"`
-	Units map[Unit]bool `json:"units"`
+	Token                 string        `json:"token"`
+	RefreshToken          string        `json:"refreshToken,omitempty"`
+	TokenExpiresAt        int64         `json:"tokenExpiresAt,omitempty"`
+	RefreshTokenExpiresAt int64         `json:"refreshTokenExpiresAt,omitempty"`
+	Repo                  string        `json:"repo"`
+	Units                 map[Unit]bool `json:"units"`
 }
 
 // Enabled reports whether anything syncs: a token, a repo, and a kind on.

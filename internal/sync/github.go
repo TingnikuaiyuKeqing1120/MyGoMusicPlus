@@ -19,6 +19,10 @@ type GitHub struct {
 	Token  string
 	Repo   string // the repository's name, under the token's account
 	Client *http.Client
+	// Authorize supplies a current token before requests, and renews it once
+	// when rejected is true. Returning the same token leaves the 401 intact.
+	// A store and its authorization callback are used by one sync at a time.
+	Authorize func(rejected bool) (string, error)
 
 	owner string
 }
@@ -164,6 +168,29 @@ func (g *GitHub) contentsPath(path string) string {
 }
 
 func (g *GitHub) api(method, path string, body any, out any, allowedStatuses ...int) (int, error) {
+	if g.Authorize != nil {
+		token, err := g.Authorize(false)
+		if err != nil {
+			return 0, err
+		}
+		g.Token = token
+	}
+	status, err := g.request(method, path, body, out, allowedStatuses...)
+	if status != http.StatusUnauthorized || g.Authorize == nil {
+		return status, err
+	}
+	token, refreshErr := g.Authorize(true)
+	if refreshErr != nil {
+		return 0, refreshErr
+	}
+	if token == g.Token {
+		return status, err
+	}
+	g.Token = token
+	return g.request(method, path, body, out, allowedStatuses...)
+}
+
+func (g *GitHub) request(method, path string, body any, out any, allowedStatuses ...int) (int, error) {
 	var rd io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)

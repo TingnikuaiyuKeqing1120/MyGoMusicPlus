@@ -15,8 +15,9 @@ const githubClientID = "Ov23lirb1mU9F61UuSC1"
 // browser's fetch; they stay nil where no shell offers it, as in a plain
 // browser, where the token is written by hand. Tests replace them.
 var (
-	deviceStart func(clientID, scope string) (string, error)
-	devicePoll  func(clientID, deviceCode string) (string, error)
+	deviceStart   func(clientID, scope string) (string, error)
+	devicePoll    func(clientID, deviceCode string) (string, error)
+	deviceRefresh func(clientID, refreshToken string) (string, error)
 )
 
 // openGitHubDevicePage lets the Android shell choose GitHub Mobile or a browser.
@@ -40,11 +41,14 @@ type deviceFlow struct {
 // the request. What came of it shows on the sync page.
 func (a *app) startDeviceFlow() {
 	s := &a.syncer
+	if s.busy || s.saving {
+		return
+	}
 	s.deviceGen++
 	gen := s.deviceGen
 	s.device = &deviceFlow{}
 	go func() {
-		body, err := deviceStart(githubClientID, "repo")
+		body, err := deviceStart(githubClientID, "repo offline_access")
 		a.post(func() {
 			if s.deviceGen != gen || s.device == nil {
 				return
@@ -82,6 +86,9 @@ func (a *app) startDeviceFlow() {
 
 // cancelDeviceFlow puts away a sign-in on its way, its polling going with it.
 func (a *app) cancelDeviceFlow() {
+	if a.syncer.saving {
+		return
+	}
 	a.syncer.deviceGen++
 	a.syncer.device = nil
 }
@@ -96,7 +103,7 @@ func (a *app) scheduleDevicePoll(gen int, after time.Duration) {
 func (a *app) pollDeviceFlow(gen int) {
 	s := &a.syncer
 	d := s.device
-	if d == nil || s.deviceGen != gen || d.err != "" {
+	if d == nil || s.deviceGen != gen || d.err != "" || s.saving {
 		return
 	}
 	if time.Now().After(d.expires) {
@@ -115,23 +122,20 @@ func (a *app) pollDeviceFlow(gen int) {
 				d.err = err.Error()
 				return
 			}
-			var res struct {
-				Token string `json:"access_token"`
-				Error string `json:"error"`
-			}
+			var res oauthTokenResponse
 			json.Unmarshal([]byte(body), &res)
 			switch {
 			case res.Token != "":
-				previous := s.cfg.Token
-				s.cfg.Token = res.Token
-				if err := a.saveSyncConfig(); err != nil {
-					s.cfg.Token = previous
-					d.err = err.Error()
-					return
-				}
-				s.err = ""
-				s.device = nil
-				a.toast = T("Signed in to GitHub")
+				s.cfg = res.config(s.cfg, time.Now())
+				a.saveSyncConfig(func(err error) {
+					if err != nil {
+						d.err = s.err
+						return
+					}
+					s.err, s.authFailed = "", false
+					s.device = nil
+					a.toast = T("Signed in to GitHub")
+				})
 			case res.Error == "authorization_pending":
 				a.scheduleDevicePoll(gen, d.interval)
 			case res.Error == "slow_down":

@@ -70,7 +70,7 @@ func TestDeviceFlowSignIn(t *testing.T) {
 	wasStart, wasPoll := deviceStart, devicePoll
 	defer func() { deviceStart, devicePoll = wasStart, wasPoll }()
 	deviceStart = func(clientID, scope string) (string, error) {
-		if clientID != githubClientID || scope != "repo" {
+		if clientID != githubClientID || scope != "repo offline_access" {
 			t.Errorf("asked to start with %q %q", clientID, scope)
 		}
 		return `{"device_code":"dc","user_code":"ABCD-1234","verification_uri":"https://github.com/login/device","expires_in":900,"interval":3600}`, nil
@@ -94,10 +94,14 @@ func TestDeviceFlowSignIn(t *testing.T) {
 		t.Fatal("the flow ended while GitHub said pending")
 	}
 	devicePoll = func(string, string) (string, error) {
-		return `{"access_token":"gho_test"}`, nil
+		return `{"access_token":"gho_test","refresh_token":"refresh-test","expires_in":28800,"refresh_token_expires_in":15897600}`, nil
 	}
 	a.pollDeviceFlow(gen)
 	runPost(t, ch)
+	if !a.syncer.saving || a.toast != "" {
+		t.Fatal("sign-in completed before the credentials were saved")
+	}
+	until(t, ch, func() bool { return !a.syncer.saving })
 	if a.syncer.device != nil {
 		t.Error("the flow stayed open after the token came")
 	}
@@ -107,10 +111,14 @@ func TestDeviceFlowSignIn(t *testing.T) {
 	if a.syncer.authFailed || a.syncer.err != "" || loadSyncConfig().Token != "gho_test" {
 		t.Fatal("reauthorization did not persist or left the previous error")
 	}
+	stored := loadSyncConfig()
+	if stored.RefreshToken != "refresh-test" || stored.TokenExpiresAt == 0 || stored.RefreshTokenExpiresAt <= stored.TokenExpiresAt {
+		t.Fatal("sign-in lost its refresh token or expiration metadata")
+	}
 }
 
-// A failed token write keeps the prior credentials and reports the failure
-// instead of claiming a sign-in that would disappear after restarting.
+// A failed token write reports failure and keeps the new credentials pending
+// for another save, since rotation may already have invalidated the old pair.
 func TestDeviceFlowTokenSaveFails(t *testing.T) {
 	root := userDataDir("")
 	mygo.App.SetPath(mygo.PathUserData, t.TempDir())
@@ -130,11 +138,12 @@ func TestDeviceFlowTokenSaveFails(t *testing.T) {
 	a.syncer.device = &deviceFlow{code: "fixture", expires: time.Date(9999, time.January, 1, 0, 0, 0, 0, time.UTC)}
 	a.pollDeviceFlow(a.syncer.deviceGen)
 	runPost(t, ch)
+	until(t, ch, func() bool { return !a.syncer.saving })
 	if a.syncer.device == nil || a.syncer.device.err == "" || a.toast != "" {
 		t.Fatal("failed token write was reported as a successful sign-in")
 	}
-	if a.syncer.cfg.Token != "old-token" || a.syncer.saved.Token != "old-token" {
-		t.Fatal("failed sign-in replaced the prior credentials")
+	if a.syncer.cfg.Token != "new-token" || !a.syncer.configPending {
+		t.Fatal("failed sign-in lost the new credentials before they could be saved")
 	}
 }
 
@@ -206,6 +215,7 @@ func TestPhoneSyncReauthorization(t *testing.T) {
 	}
 	a.pollDeviceFlow(a.syncer.deviceGen)
 	runPost(t, ch)
+	until(t, ch, func() bool { return !a.syncer.saving })
 	tt.Frame()
 	if a.syncer.authFailed || a.syncer.err != "" || loadSyncConfig().Token != "renewed" {
 		t.Fatal("phone reauthorization did not restore sync credentials")

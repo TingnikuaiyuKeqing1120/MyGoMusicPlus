@@ -3,6 +3,7 @@ package sync
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,6 +15,61 @@ func (tr githubTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	w := httptest.NewRecorder()
 	tr.handler.ServeHTTP(w, req)
 	return w.Result(), nil
+}
+
+// A rejected write is retried once with renewed credentials and its original body; other failures stay intact.
+func TestGitHubRenewalRetry(t *testing.T) {
+	for _, status := range []int{201, 401, 403} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			g := NewGitHub("old", "sync")
+			g.owner = "fixture"
+			requests, refreshes := 0, 0
+			var original string
+			g.Authorize = func(rejected bool) (string, error) {
+				if rejected {
+					refreshes++
+					return "new", nil
+				}
+				return "old", nil
+			}
+			g.Client.Transport = githubTransport{http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				body, _ := io.ReadAll(r.Body)
+				if requests == 1 {
+					original = string(body)
+					if status == 403 {
+						w.WriteHeader(403)
+					} else {
+						w.WriteHeader(401)
+					}
+					fmt.Fprint(w, `{"message":"refused"}`)
+					return
+				}
+				if r.Method != "PUT" || string(body) != original || r.Header.Get("Authorization") != "Bearer new" {
+					t.Error("renewal changed the write or reused the old token")
+				}
+				w.WriteHeader(status)
+				fmt.Fprint(w, `{}`)
+			})}
+			err := g.PutVersion("document.json", []byte(`{"title":"fixture"}`), "prior-revision")
+			if status == 201 && err != nil {
+				t.Fatal(err)
+			}
+			if status != 201 {
+				var apiErr *GitHubError
+				if !errors.As(err, &apiErr) || apiErr.StatusCode != status {
+					t.Fatalf("lost final API failure: %v", err)
+				}
+			}
+			if status == 403 {
+				if requests != 1 || refreshes != 0 {
+					t.Fatal("permission failure triggered token renewal")
+				}
+			} else if requests != 2 || refreshes != 1 {
+				t.Fatalf("requests=%d refreshes=%d", requests, refreshes)
+			}
+		})
+	}
 }
 
 // Account failures keep GitHub's reason and status instead of calling every

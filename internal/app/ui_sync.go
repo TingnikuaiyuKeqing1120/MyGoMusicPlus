@@ -15,37 +15,42 @@ import (
 func (a *app) syncSettings(c *ui.Context, row settingsRow, p palette) {
 	a.importSettings(c, row)
 	s := &a.syncer
+	editingDisabled := s.busy || s.saving || s.device != nil
 	if deviceStart != nil {
 		a.deviceSignIn(c, row, p)
 	}
 	row(T("GitHub Token"), T("A personal access token with repo access, kept on this device alone"), func() {
-		in := ui.TextInput(c.Key("sync-token"), &s.cfg.Token).Label(T("GitHub Token")).Placeholder("ghp_…").Password().Disabled(s.busy).Width(220).MaxWidthPercent(100)
-		if in.Submitted() || !in.Focused() && s.cfg.Token != s.saved.Token {
-			a.saveSyncConfig()
+		in := ui.TextInput(c.Key("sync-token"), &s.cfg.Token).Label(T("GitHub Token")).Placeholder("ghp_…").Password().Disabled(editingDisabled).Width(220).MaxWidthPercent(100)
+		if !editingDisabled && (in.Submitted() || !in.Focused() && s.cfg.Token != s.saved.Token) {
+			if s.cfg.Token != s.saved.Token {
+				s.cfg.RefreshToken = ""
+				s.cfg.TokenExpiresAt, s.cfg.RefreshTokenExpiresAt = 0, 0
+			}
+			a.saveSyncConfig(nil)
 		}
 	})
 	row(T("Repository"), T("A private repository under your account, made if it isn't there"), func() {
-		in := ui.TextInput(c.Key("sync-repo"), &s.cfg.Repo).Label(T("Repository")).Placeholder("mygo-music-sync").Disabled(s.busy).Width(220).MaxWidthPercent(100)
-		if in.Submitted() || !in.Focused() && s.cfg.Repo != s.saved.Repo {
-			a.saveSyncConfig()
+		in := ui.TextInput(c.Key("sync-repo"), &s.cfg.Repo).Label(T("Repository")).Placeholder("mygo-music-sync").Disabled(editingDisabled).Width(220).MaxWidthPercent(100)
+		if !editingDisabled && (in.Submitted() || !in.Focused() && s.cfg.Repo != s.saved.Repo) {
+			a.saveSyncConfig(nil)
 		}
 	})
 	for _, u := range sync.Units {
 		on := s.cfg.Units[u]
 		label, desc := syncUnitText(u)
 		row(label, desc, func() {
-			ui.Switch(c.Key("sync-"+string(u)), &on).Label(label).Disabled(s.busy).OnClick(func() {
+			ui.Switch(c.Key("sync-"+string(u)), &on).Label(label).Disabled(editingDisabled).OnClick(func() {
 				if s.cfg.Units == nil {
 					s.cfg.Units = map[sync.Unit]bool{}
 				}
 				s.cfg.Units[u] = on
-				a.saveSyncConfig()
+				a.saveSyncConfig(nil)
 			})
 		})
 	}
 	row(T("Sync Now"), syncStatusDesc(s), func() {
 		ui.Column(c).MaxWidthPercent(100).Gap(5).Children(func() {
-			if ui.Button(c.Key("sync-now"), T("Sync Now")).Disabled(s.busy || s.device != nil || !s.cfg.Enabled()).Clicked() {
+			if ui.Button(c.Key("sync-now"), T("Sync Now")).Disabled(s.busy || s.saving || s.device != nil || !s.cfg.Enabled()).Clicked() {
 				a.syncNow()
 			}
 			if s.busy && s.total > 0 {
@@ -72,7 +77,7 @@ func (a *app) deviceSignIn(c *ui.Context, row settingsRow, p palette) {
 			desc = T("A GitHub token is set for sync on this device.")
 		}
 		row(T("GitHub Sign-in"), desc, func() {
-			if ui.Button(c.Key("device-start"), T("Sign in with GitHub")).Disabled(s.busy).Clicked() {
+			if ui.Button(c.Key("device-start"), T("Sign in with GitHub")).Disabled(s.busy || s.saving).Clicked() {
 				a.startDeviceFlow()
 			}
 		})
@@ -85,6 +90,8 @@ func (a *app) deviceSignIn(c *ui.Context, row settingsRow, p palette) {
 	row(T("GitHub Sign-in"), desc, func() {
 		ui.Column(c).Gap(8).AlignItems(ui.Start).MaxWidthPercent(100).Children(func() {
 			switch {
+			case s.saving:
+				ui.Text(c, T("Saving GitHub sign-in…")).FontSize(13).TextColor(p.muted)
 			case d.err != "":
 				ui.Text(c, d.err).FontSize(12).TextColor(p.accent).LineHeight(1.4)
 				ui.Button(c.Key("device-retry"), T("Try Again")).OnClick(a.startDeviceFlow)
@@ -108,7 +115,7 @@ func (a *app) deviceSignIn(c *ui.Context, row settingsRow, p palette) {
 					ui.Button(c.Key("device-browser"), T("Open in Browser")).OnClick(func() { a.openDevicePage(d.uri, false) })
 				}
 			}
-			ui.Button(c.Key("device-cancel"), T("Cancel")).OnClick(a.cancelDeviceFlow)
+			ui.Button(c.Key("device-cancel"), T("Cancel")).Disabled(s.saving).OnClick(a.cancelDeviceFlow)
 		})
 	})
 }

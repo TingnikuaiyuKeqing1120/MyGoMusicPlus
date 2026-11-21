@@ -2,6 +2,11 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+- Desktop and Android GitHub sync retain rotating refresh tokens, renew expiring sign-ins before API requests and retry a rejected request once. Temporary renewal failures remain retryable, and rejected refresh tokens prompt for sign-in.
+- Sync credentials are saved atomically and flushed to persistent storage before sign-in completes. A failed save retains newly rotated credentials for a later persistence retry.
+
 ## [0.5.0] - 2026-11-21
 
 - Android audio uses Media3 ExoPlayer in a foreground service, including streaming, downloaded files, authorized music folders, playback caching, normalization and spectrum levels. System media controls and prepared queue transitions run independently of the WebView interface.

@@ -77,4 +77,9 @@ func useDeviceFlow() {
 	devicePoll = func(clientID, code string) (string, error) {
 		return request("githubDevicePoll", clientID, code)
 	}
+	if bridge.Get("githubDeviceRefresh").Type() == js.TypeFunction {
+		deviceRefresh = func(clientID, refreshToken string) (string, error) {
+			return request("githubDeviceRefresh", clientID, refreshToken)
+		}
+	}
 }

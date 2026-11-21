@@ -134,6 +134,13 @@ class Bridge(private val ctx: Context, private val chooseMusicFolder: () -> Unit
                 "&grant_type=" + enc("urn:ietf:params:oauth:grant-type:device_code"))
     }
 
+    @JavascriptInterface
+    fun githubDeviceRefresh(clientId: String, refreshToken: String, id: Int) {
+        devicePost(id, "https://github.com/login/oauth/access_token",
+            "client_id=" + enc(clientId) + "&refresh_token=" + enc(refreshToken) +
+                "&grant_type=refresh_token")
+    }
+
     private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
 
     private fun devicePost(id: Int, url: String, body: String) {
@@ -145,6 +152,7 @@ class Bridge(private val ctx: Context, private val chooseMusicFolder: () -> Unit
                 conn.connectTimeout = 15000
                 conn.readTimeout = 15000
                 conn.setRequestProperty("Accept", "application/json")
+                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
                 conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
                 val stream = if (conn.responseCode >= 400) conn.errorStream else conn.inputStream
                 stream?.use { it.readBytes().toString(Charsets.UTF_8) }

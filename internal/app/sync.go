@@ -7,6 +7,7 @@ import (
 	"maps"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -33,16 +34,18 @@ var newSyncRepository = sync.NewGitHub
 
 // syncState is what's going on with syncing.
 type syncState struct {
-	cfg         sync.Config
-	saved       sync.Config // as last kept, for the fields to save on a change
-	summary     string
-	phase       string
-	done, total int
-	busy        bool
-	authFailed  bool
-	err         string
-	last        time.Time // when syncing last came through
-	dirty       bool      // a change here awaits its push
+	cfg           sync.Config
+	saved         sync.Config // last submitted values, to detect edits in the form
+	saving        bool
+	configPending bool // latest credentials still need a durable write
+	summary       string
+	phase         string
+	done, total   int
+	busy          bool
+	authFailed    bool
+	err           string
+	last          time.Time // when syncing last came through
+	dirty         bool      // a change here awaits its push
 	// device is a GitHub sign-in on its way, the device flow's code showing
 	// while the listener enters it; deviceGen counts the ones started, to
 	// tell the last from one put away.
@@ -51,17 +54,32 @@ type syncState struct {
 }
 
 // saveSyncConfig keeps the choices on this device.
-func (a *app) saveSyncConfig() error {
-	if err := writeSyncConfig(a.syncer.cfg); err != nil {
-		a.syncer.err = err.Error()
-		return err
+func (a *app) saveSyncConfig(done func(error)) {
+	s := &a.syncer
+	if s.saving {
+		return
 	}
-	if a.syncer.cfg.Token != a.syncer.saved.Token {
-		a.syncer.authFailed = false
-		a.syncer.err = ""
-	}
-	a.syncer.saved = a.syncer.cfg
-	return nil
+	cfg := s.cfg
+	cfg.Units = maps.Clone(cfg.Units)
+	tokenChanged := cfg.Token != s.saved.Token
+	s.saved, s.saving, s.configPending = cfg, true, true
+	go func() {
+		err := writeSyncConfig(cfg)
+		a.post(func() {
+			s.saving, s.configPending = false, err != nil
+			if err != nil {
+				s.err = Tf("Couldn't save sync settings (%s). Try syncing again.", err.Error())
+			} else {
+				s.err = ""
+				if tokenChanged {
+					s.authFailed = false
+				}
+			}
+			if done != nil {
+				done(err)
+			}
+		})
+	}()
 }
 
 // syncConfigPath is where the token and the choices stay, on this device
@@ -84,7 +102,29 @@ func writeSyncConfig(c sync.Config) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(syncConfigPath(), b, 0o600)
+	path := syncConfigPath()
+	f, err := os.CreateTemp(filepath.Dir(path), ".sync-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	_, err = f.Write(b)
+	if err == nil {
+		err = f.Sync()
+	}
+	if err = errors.Join(err, f.Close()); err != nil {
+		return err
+	}
+	if err = os.Rename(f.Name(), path); err != nil {
+		return err
+	}
+	// Web writes and renames reach OPFS asynchronously. A successful save
+	// includes the destination's write-back, so a restart keeps the token pair.
+	f, err = os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	return errors.Join(f.Sync(), f.Close())
 }
 
 // keepSyncing looks for what changed elsewhere now and then, for as long as
@@ -99,7 +139,7 @@ func (a *app) keepSyncing() {
 // syncNow pulls what changed elsewhere, then pushes what changed here.
 func (a *app) syncNow() {
 	s := &a.syncer
-	if !s.cfg.Enabled() || s.busy || s.device != nil {
+	if !s.cfg.Enabled() || s.busy || s.saving || s.device != nil {
 		return
 	}
 	s.busy, s.dirty, s.err, s.summary = true, false, "", ""
@@ -108,6 +148,7 @@ func (a *app) syncNow() {
 	cfg.Units = maps.Clone(cfg.Units)
 	root := userDataDir("")
 	store := newSyncRepository(cfg.Token, cfg.Repo)
+	store.Authorize = a.syncAuthorization(cfg)
 	progress := func(phase string, done, total int) { a.post(func() { s.phase, s.done, s.total = phase, done, total }) }
 	a.redraw()
 	go func() {
@@ -214,9 +255,9 @@ func (a *app) endSync(err error) {
 	if err != nil {
 		s.err = err.Error()
 		var githubErr *sync.GitHubError
-		if errors.As(err, &githubErr) && githubErr.StatusCode == http.StatusUnauthorized {
+		if errors.Is(err, errSyncReauthorization) || errors.As(err, &githubErr) && githubErr.StatusCode == http.StatusUnauthorized {
 			s.authFailed = true
-			s.err = T("GitHub rejected this device's sign-in (401). Sign in with GitHub again, then sync.")
+			s.err = T("GitHub sign-in could not be renewed. Sign in with GitHub again, then sync.")
 			a.toast = T("GitHub sign-in is invalid. Open Settings → Sync to sign in again.")
 		}
 		return
