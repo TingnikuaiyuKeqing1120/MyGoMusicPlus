@@ -2,7 +2,7 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
-## Unreleased
+## [0.5.0] - 2026-11-21
 
 - Android audio uses Media3 ExoPlayer in a foreground service, including streaming, downloaded files, authorized music folders, playback caching, normalization and spectrum levels. System media controls and prepared queue transitions run independently of the WebView interface.
 - Web and Android keep the downloaded-song index and playback session in the persistent profile directory, so newly saved downloads and playback positions can be restored after restarting.
@@ -310,6 +310,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.5.0]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.2.3...v0.3.0
