@@ -2,7 +2,7 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.5.3] - 2026-11-23
 
 - Bundled GD plugin 2.2.0 adds experimental domestic and international webpage service choices alongside the public developer API. Requests use the site's version and clock, retry a rejected checksum once, and keep artwork/search caches separate by service.
 - Android performs the GD webpage requests locally through its native network stack. Plugin network permissions still apply, and the native handler accepts only the two GD hosts and the three required public endpoints.
@@ -329,6 +329,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.5.3]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/TingnikuaiyuKeqing1120/MyGoMusicPlus/compare/v0.4.1...v0.5.0
