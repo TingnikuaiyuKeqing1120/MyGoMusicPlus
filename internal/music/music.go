@@ -330,14 +330,22 @@ type SettingOption struct {
 
 // Info is how a source introduces itself.
 type Info struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	Version  string    `json:"version,omitempty"`
-	Playback Playback  `json:"playback"`
-	Settings []Setting `json:"settings,omitempty"`
+	ID       string       `json:"id"`
+	Name     string       `json:"name"`
+	Version  string       `json:"version,omitempty"`
+	Playback Playback     `json:"playback"`
+	Settings []Setting    `json:"settings,omitempty"`
+	Links    []SourceLink `json:"links,omitempty"`
 	// Navigation is the sidebar while the source is active, in this order. With
 	// none, the sidebar has an entry for each of the app's pages the source can do.
 	Navigation []NavItem `json:"navigation,omitempty"`
+}
+
+// SourceLink credits a source's website, author or related project.
+type SourceLink struct {
+	Label       string `json:"label"`
+	URL         string `json:"url"`
+	Description string `json:"description,omitempty"`
 }
 
 var (

@@ -34,7 +34,7 @@ func TestGenericPluginDataAcrossDevices(t *testing.T) {
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			t.Fatal(err)
 		}
-		manifest := `{"id":"future-radio","name":"Future","sync":{"localKeys":["artworkCache"]}}`
+		manifest := `{"id":"future-radio","name":"Future","sync":{"localKeys":["artworkCache"],"localSettings":["service"]}}`
 		source := `let saved=host.storage.get("shelves")||[];
 export function playlists(){return saved.map(s=>({id:s.id,name:s.name,mine:true}));}
 export function createPlaylist({name}){const items=host.storage.get("shelves")||[];const p={id:name,name};items.push(p);host.storage.set("shelves",items);saved=items;return p;}
@@ -62,6 +62,12 @@ export function suggest(){return [host.setting("server")||"empty"];}`
 	left, right := makePlugin(leftRoot, "desktop"), makePlugin(rightRoot, "phone")
 	changes := 0
 	left.OnDataChange(func() { changes++ })
+	if err := left.SetSetting("service", "domestic"); err != nil {
+		t.Fatal(err)
+	}
+	if err := right.SetSetting("service", "international"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := left.CreatePlaylist("first"); err != nil {
 		t.Fatal(err)
 	}
@@ -100,6 +106,16 @@ export function suggest(){return [host.setting("server")||"empty"];}`
 		if string(p.storage["artworkCache"]) != fmt.Sprintf("%q", side) {
 			t.Fatal("device cache changed")
 		}
+	}
+	if left.Setting("service") != "domestic" || right.Setting("service") != "international" {
+		t.Fatal("device-specific service overwritten by sync")
+	}
+	if bytes.Contains(store["documents/plugin-future-radio.json"], []byte("service")) {
+		t.Fatal("device-specific setting uploaded")
+	}
+	filtered, err := left.FilterData(cloud.Document{"settings": json.RawMessage(`{"service":"old-cloud-value","server":"keep"}`)})
+	if err != nil || bytes.Contains(filtered["settings"], []byte("service")) || !bytes.Contains(filtered["settings"], []byte("keep")) {
+		t.Fatal("old cloud settings were not filtered", filtered, err)
 	}
 	if _, err := right.CreatePlaylist("phone-new"); err != nil {
 		t.Fatal(err)

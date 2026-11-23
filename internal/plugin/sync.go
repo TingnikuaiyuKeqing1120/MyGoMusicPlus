@@ -10,10 +10,11 @@ import (
 	cloud "mygo-music/internal/sync"
 )
 
-// SyncOptions lets a plugin identify cache/device-specific storage keys while
-// every other host.storage key participates without provider-specific code.
+// SyncOptions identifies cache/device-specific storage and settings while
+// other data participates without provider-specific code.
 type SyncOptions struct {
-	LocalKeys []string `json:"localKeys,omitempty"`
+	LocalKeys     []string `json:"localKeys,omitempty"`
+	LocalSettings []string `json:"localSettings,omitempty"`
 }
 
 func (p *Plugin) snapshotData() (cloud.Document, error) {
@@ -21,7 +22,11 @@ func (p *Plugin) snapshotData() (cloud.Document, error) {
 	for _, key := range p.manifest.Sync.LocalKeys {
 		delete(storage, key)
 	}
-	settings, err := json.Marshal(p.settings)
+	settingsCopy := maps.Clone(p.settings)
+	for _, key := range p.manifest.Sync.LocalSettings {
+		delete(settingsCopy, key)
+	}
+	settings, err := json.Marshal(settingsCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -38,6 +43,20 @@ func (p *Plugin) FilterData(data cloud.Document) (cloud.Document, error) {
 	out := maps.Clone(data)
 	if out == nil {
 		out = cloud.Document{}
+	}
+	if raw, ok := out["settings"]; ok {
+		var settings map[string]string
+		if err := json.Unmarshal(raw, &settings); err != nil {
+			return nil, err
+		}
+		for _, key := range p.manifest.Sync.LocalSettings {
+			delete(settings, key)
+		}
+		b, err := json.Marshal(settings)
+		if err != nil {
+			return nil, err
+		}
+		out["settings"] = b
 	}
 	if raw, ok := out["storage"]; ok {
 		var storage map[string]json.RawMessage
@@ -101,6 +120,12 @@ func (p *Plugin) ApplyData(before, accepted cloud.Document) error {
 	}
 	if storage == nil {
 		storage = map[string]json.RawMessage{}
+	}
+	for _, key := range p.manifest.Sync.LocalSettings {
+		delete(settings, key)
+		if value, ok := p.settings[key]; ok {
+			settings[key] = value
+		}
 	}
 	for _, key := range p.manifest.Sync.LocalKeys {
 		delete(storage, key)

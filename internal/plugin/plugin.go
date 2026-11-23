@@ -507,7 +507,7 @@ func (p *Plugin) webOptions() webapi.Options {
 	if len(hosts) == 0 {
 		return webapi.Options{}
 	}
-	opts := webapi.Options{Client: &http.Client{Timeout: 10 * time.Minute}}
+	opts := webapi.Options{Client: &http.Client{Timeout: 10 * time.Minute, Transport: pluginTransport()}}
 	for _, h := range hosts {
 		if h == "*" {
 			return opts
@@ -674,6 +674,10 @@ func (p *Plugin) Info() music.Info {
 	for i, n := range info.Navigation {
 		info.Navigation[i].Title = p.t(n.Title)
 	}
+	info.Links = slices.Clone(info.Links)
+	for i, link := range info.Links {
+		info.Links[i].Label, info.Links[i].Description = p.t(link.Label), p.t(link.Description)
+	}
 	return info
 }
 
@@ -705,7 +709,7 @@ func (p *Plugin) SetSetting(key, value string) error {
 	}
 	fn := p.onDataChange
 	p.mu.Unlock()
-	if fn != nil && previous != value {
+	if fn != nil && previous != value && !slices.Contains(p.manifest.Sync.LocalSettings, key) {
 		fn()
 	}
 	if running && p.exports["setSetting"] {

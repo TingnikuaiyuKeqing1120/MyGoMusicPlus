@@ -1,9 +1,11 @@
 package app
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -11,6 +13,75 @@ import (
 	"github.com/egoist/mygo/ui"
 	"mygo-music/internal/music"
 )
+
+// Service selection persists its value, and author links open their own destinations at phone and desktop widths.
+func TestGDServiceSettings(t *testing.T) {
+	manifest, err := bundledGD.ReadFile("bundled/gdstudio/plugin.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var info music.Info
+	if err := json.Unmarshal(manifest, &info); err != nil {
+		t.Fatal(err)
+	}
+	for _, width := range []int{320, 390, 1000} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			a := newTestApp()
+			post := posts(a)
+			src := newSettingSource(a)
+			src.info = info
+			delete(src.caps, "account")
+			kept := make(chan string, 1)
+			src.setSetting = func(key, value string) error {
+				src.putSetting(key, value)
+				kept <- key + "=" + value
+				return nil
+			}
+			tt := ui.NewTester(func(c *ui.Context) { a.pluginSettings(c, a.library, paletteFor(c.Theme())) }, width, 850)
+			tt.SetDark(true)
+			st := info.Settings[0]
+			clickSettingRole(t, tt, ui.RolePopUpButton, st.Label)
+			if err := tt.Click(st.Options[1].Label); err != nil {
+				t.Fatal(err)
+			}
+			if got := wait(t, kept, "service setting"); got != "service=domestic" {
+				t.Fatalf("wrong setting %q", got)
+			}
+			runPost(t, post)
+			tt.Frame()
+			var want []string
+			for _, link := range info.Links {
+				if err := tt.Click(link.Label); err != nil {
+					t.Fatal(err)
+				}
+				want = append(want, link.URL)
+			}
+			if !slices.Equal(tt.OpenedURLs(), want) {
+				t.Fatalf("link destinations %v, want %v", tt.OpenedURLs(), want)
+			}
+			if dir := os.Getenv("MM_FRAMES"); dir != "" {
+				saveFrame(t, dir, fmt.Sprintf("gd-service-%d", width), tt.Image())
+			}
+		})
+	}
+}
+
+// Two source credits may point to the same page without colliding in UI identity.
+func TestSourceLinksSameDestination(t *testing.T) {
+	a := newTestApp()
+	src := fake(a)
+	delete(src.caps, "account")
+	src.info.Links = []music.SourceLink{{Label: "Website", URL: "https://example.com"}, {Label: "Author", URL: "https://example.com"}}
+	tt := ui.NewTester(func(c *ui.Context) { a.pluginSettings(c, a.library, paletteFor(c.Theme())) }, 320, 500)
+	for _, link := range src.info.Links {
+		if err := tt.Click(link.Label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !slices.Equal(tt.OpenedURLs(), []string{"https://example.com", "https://example.com"}) {
+		t.Fatal(tt.OpenedURLs())
+	}
+}
 
 // These sources model plugins that change memory before a save fails. Reads
 // during UI rebuilds must be synchronized just as Plugin.Setting is.

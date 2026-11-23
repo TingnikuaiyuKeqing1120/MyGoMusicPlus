@@ -2,6 +2,13 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+- Bundled GD plugin 2.2.0 adds experimental domestic and international webpage service choices alongside the public developer API. Requests use the site's version and clock, retry a rejected checksum once, and keep artwork/search caches separate by service.
+- Android performs the GD webpage requests locally through its native network stack. Plugin network permissions still apply, and the native handler accepts only the two GD hosts and the three required public endpoints.
+- Plugin settings display source website, author and project links. GD includes both websites, the author's Bilibili profile and Embeat.
+- Plugins may declare device-specific settings with `sync.localSettings`. GD service choices stay local while song records, playlists and other synchronized data keep their existing identities.
+
 ## [0.5.2] - 2026-11-23
 
 - Bundled GD plugin 2.1.0 coalesces requests, reserves API quota for playback, honors server cooldowns and bounds cover loading. Saved lists retry missing artwork, cover URLs expire, and unreliable duration/size estimates are no longer used.

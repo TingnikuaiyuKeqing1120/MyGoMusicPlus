@@ -71,6 +71,7 @@ class MainActivity : Activity() {
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(applicationContext))
             .addPathHandler("/native-music/", musicFolders)
             .addPathHandler("/native-github/", GitHubArchives())
+            .addPathHandler("/native-gd/", GDWebRequests())
             .build()
         PlayerWebRuntime.useAssets(assetLoader)
         WebLink.device = { id, json ->

@@ -86,3 +86,42 @@ func TestGDStudioRequestCache(t *testing.T) {
 		t.Fatalf("sync included device cache or lost user data: %v", storage)
 	}
 }
+
+// Web routes must execute in the real plugin VM and resolve relative resource URLs.
+func TestGDStudioWebRoutes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/js/player.js"):
+			w.Write([]byte(`var mkPlayer={version:"2026.11.22"}`))
+		case strings.HasSuffix(r.URL.Path, "/time"):
+			w.Write([]byte(`1795430000`))
+		default:
+			if len(r.URL.Query().Get("s")) != 8 {
+				t.Error("missing website checksum")
+				w.WriteHeader(401)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"url":"cache/song.flac","br":999}`))
+		}
+	}))
+	defer server.Close()
+	source, err := os.ReadFile(filepath.Join("..", "app", "bundled", "gdstudio", "index.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := strings.NewReplacer(
+		"https://music.gdstudio.org", server.URL+"/domestic",
+		"https://music.gdstudio.xyz", server.URL+"/international",
+	).Replace(string(source))
+	p := load(t, `{"id":"gdstudio","permissions":{"network":["127.0.0.1"]}}`, script)
+	for _, line := range []string{"domestic", "international"} {
+		if err := p.SetSetting("service", line); err != nil {
+			t.Fatal(err)
+		}
+		stream, err := p.Stream("netease|1||1", "lossless")
+		if err != nil || stream.URL != server.URL+"/"+line+"/cache/song.flac" {
+			t.Fatalf("%s route: %+v %v", line, stream, err)
+		}
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"os"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -831,6 +832,14 @@ func (a *app) pluginSettings(c *ui.Context, lib *library, p palette) {
 		}
 		for _, st := range info.Settings {
 			a.sourceSetting(c.Key(st.Key), lib, st, p)
+		}
+		for i, link := range info.Links {
+			ui.Column(c.Key("source-link-" + strconv.Itoa(i))).Gap(3).Children(func() {
+				ui.Link(c, link.Label, link.URL).FontSize(12.5)
+				if link.Description != "" {
+					ui.Text(c, link.Description).FontSize(11.5).TextColor(p.muted).LineHeight(1.4)
+				}
+			})
 		}
 	})
 }

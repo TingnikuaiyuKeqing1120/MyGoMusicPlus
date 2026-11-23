@@ -35,6 +35,9 @@ class Bridge(private val ctx: Context, private val chooseMusicFolder: () -> Unit
     fun hasGitHubArchiveLoader(): Boolean = true
 
     @JavascriptInterface
+    fun hasGDWebLoader(): Boolean = true
+
+    @JavascriptInterface
     fun hasNativePlayback(): Boolean = true
 
     @JavascriptInterface
