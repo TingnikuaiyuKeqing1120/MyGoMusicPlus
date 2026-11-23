@@ -15,7 +15,7 @@ export default ({ command }: { command: string }) => {
     identifier: plusDev ? "com.mygomusic.plus.dev" : plusDesktop ? "com.mygomusic.plus" : "dev.egoist.music",
     slug: plusDev ? slug + "-dev" : slug,
     icon: plusDesktop ? "resources/plus-rain-cat.png" : undefined,
-    version: "0.5.1",
+    version: "0.5.2",
     out: "build",
     urlSchemes: [plusDev || command === "dev" ? slug + "-dev" : slug],
     // Installed updates replace a directory of packaged resources. Standalone
