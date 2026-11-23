@@ -4,6 +4,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 ## [Unreleased]
 
+- Bundled GD plugin 2.1.0 coalesces requests, reserves API quota for playback, honors server cooldowns and bounds cover loading. Saved lists retry missing artwork, cover URLs expire, and unreliable duration/size estimates are no longer used.
 - Downloads check existing files before resolving online audio, reuse indexed copies across folders, recover matching filenames across supported audio extensions, and collapse duplicate queued requests. Completed records retain measured file sizes and survive clearing the task panel.
 - Desktop and Android playback prefer saved downloads, then uniquely matching local-library recordings with complete credits. The queue retains the original song identity for playlists, likes and listening history. Missing files fall back to the original source.
 - Batch download identities include the source. Different songs with colliding generated filenames receive distinct names.
