@@ -31,7 +31,7 @@ func (a *app) downloadButton(c *ui.Context, color ui.Color) {
 // and what can be done with it.
 func (a *app) downloadsPanel(c *ui.Context, pop popover) {
 	p := a.pal
-	m := &a.downloads
+	m := a.downloads
 	ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
 		ui.Text(c, T("Downloads")).FontSize(13).FontWeight(700).Grow(1)
 		if m.anyFinished() {
@@ -40,14 +40,20 @@ func (a *app) downloadsPanel(c *ui.Context, pop popover) {
 			}
 		}
 	})
-	if len(m.jobs) == 0 {
+	visible := false
+	for _, j := range m.jobs {
+		visible = visible || !j.hidden
+	}
+	if !visible {
 		ui.Text(c, T("No downloads yet")).FontSize(12.5).TextColor(p.muted).Padding(8, 0)
 		return
 	}
 	ui.Scroll(c).ObserveInput(touchScrollInput).MaxHeight(360).Children(func() {
 		ui.Column(c).Gap(2).Children(func() {
 			for _, j := range m.jobs {
-				a.downloadRow(c, j, pop)
+				if !j.hidden {
+					a.downloadRow(c, j, pop)
+				}
 			}
 		})
 	})
@@ -57,7 +63,7 @@ func (a *app) downloadsPanel(c *ui.Context, pop popover) {
 // became of it, and its cancel, retry or remove.
 func (a *app) downloadRow(c *ui.Context, j *dlJob, pop popover) {
 	p := a.pal
-	m := &a.downloads
+	m := a.downloads
 	ui.Row(c.Key(j.id)).Gap(8).AlignItems(ui.Center).Padding(5, 6).Radius(8).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 			ui.Text(c, j.track.Name).FontSize(13).FontWeight(500).SingleLine()

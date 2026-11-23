@@ -23,6 +23,7 @@ func webDownloadDir() string {
 }
 
 func init() {
+	downloadDir = webDownloadDir
 	saveSongAs = func(a *app, name string) string {
 		return filepath.Join(webDownloadDir(), name)
 	}

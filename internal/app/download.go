@@ -31,12 +31,17 @@ var saveSongAs = func(a *app, name string) string {
 	return path
 }
 
+var downloadDir = func() string {
+	dir, _ := mygo.App.Path(mygo.PathDownloads)
+	return dir
+}
+
 // canDownload reports whether tr can be saved to a file of the listener's: a
 // song its source streams for the app to play, rather than one already on disk
 // or one that plays elsewhere.
 func (a *app) canDownload(tr *music.Track) bool {
 	lib := a.trackLib(tr)
-	return lib != nil && lib.id != local.ID && lib.can("stream") &&
+	return lib != nil && lib.id != local.ID && lib.id != downloadedID && lib.can("stream") &&
 		lib.src.Info().Playback == music.PlaybackStream && !tr.Unavailable
 }
 
@@ -82,12 +87,15 @@ func (a *app) downloadQualityMenu(m *ui.Menu, tracks []music.Track) {
 // saved once, and one already in the folder is left as it is. The download
 // manager shows each one's progress, and a toast tells of them all.
 func (a *app) downloadAll(tracks []music.Track, quality string) {
-	lib := a.library
 	var list []music.Track
 	seen := map[string]bool{}
 	for _, tr := range tracks {
-		if !seen[tr.ID] && a.canDownload(&tr) {
-			seen[tr.ID] = true
+		if tr.Source == "" {
+			tr.Source = a.library.id
+		}
+		key := tr.Source + "\x00" + tr.ID
+		if !seen[key] && a.canDownload(&tr) {
+			seen[key] = true
 			list = append(list, tr)
 		}
 	}
@@ -95,7 +103,7 @@ func (a *app) downloadAll(tracks []music.Track, quality string) {
 		return
 	}
 	pickFolder(a, func(dir string) {
-		a.downloads.addBatch(a, lib, quality, list, dir)
+		a.downloads.addBatch(a, quality, list, dir)
 		a.downloads.open = true
 	})
 }
@@ -104,24 +112,12 @@ func (a *app) downloadAll(tracks []music.Track, quality string) {
 // settings say, from the cache if it's kept there; the download manager shows
 // its progress, and a toast tells when it lands.
 func (a *app) download(tr music.Track) {
+	if !a.canDownload(&tr) {
+		return
+	}
 	lib := a.trackLib(&tr)
-	quality := a.settings.Quality
-	go func() {
-		song, err := a.pl.FindSong(lib.src, tr, quality)
-		if err != nil {
-			a.post(func() { a.actionFailed(lib, err, T("Couldn't download this song")) })
-			return
-		}
-		path := saveSongAs(a, songFileName(&tr, song.Type))
-		if path == "" {
-			song.Close()
-			return
-		}
-		a.post(func() {
-			a.downloads.add(a, &dlJob{track: tr, path: path, song: song, lib: lib, quality: quality})
-			a.downloads.open = true
-		})
-	}()
+	a.downloads.add(a, &dlJob{track: tr, lib: lib, quality: a.settings.Quality, choosePath: true})
+	a.downloads.open = true
 }
 
 // songFileName names the file of a song of type ext as its credits read,

@@ -32,6 +32,9 @@ type Player struct {
 	Quiet func(func())
 	// Source finds the source of an ID, or nil if it's gone.
 	Source func(id string) music.Source
+	// LocalAudio finds a saved copy without changing the queue's source IDs.
+	// It runs on workers and returns nil when no usable local match exists.
+	LocalAudio func(music.Track) *music.Stream
 	// Failed, if set, hears that a source said the listener has something to
 	// do first: ErrSignIn or ErrSetup.
 	Failed func(source string, err error)
@@ -947,6 +950,21 @@ var errNoSource = errors.New("player: no such source")
 // there, or else streamed into the cache, and kept once it has all come in.
 // What failed ahead is asked for again: it may have been a moment's.
 func (p *Player) open(src music.Source, t music.Track, quality string, pre *ahead) (*music.Stream, stream, error) {
+	if p.LocalAudio != nil {
+		if info := p.LocalAudio(t); info != nil {
+			if path, ok := music.PathOf(info.URL); ok {
+				if dl, err := openFile(path); err == nil {
+					if s, err := openStream(dl, t.Duration); err == nil {
+						if pre != nil {
+							go pre.close()
+						}
+						return info, s, nil
+					}
+					dl.Close()
+				}
+			}
+		}
+	}
 	if src == nil {
 		if pre != nil {
 			pre.close()
@@ -964,7 +982,7 @@ func (p *Player) open(src music.Source, t music.Track, quality string, pre *ahea
 				path, _ := music.PathOf(info.URL)
 				var err error
 				if dl, err = openFile(path); err != nil {
-					return nil, nil, err
+					info, ok = nil, false
 				}
 			}
 		}
@@ -1008,6 +1026,10 @@ func openFile(path string) (*download, error) {
 	if err != nil {
 		f.Close()
 		return nil, err
+	}
+	if !info.Mode().IsRegular() || info.Size() <= 0 {
+		f.Close()
+		return nil, music.ErrUnavailable
 	}
 	return opened(f, info.Size()), nil
 }

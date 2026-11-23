@@ -119,7 +119,7 @@ type app struct {
 	trackSel   ui.Selection[int]
 	pageTracks []music.Track
 
-	downloads dlManager // songs on their way to files of the listener's
+	downloads *dlManager // songs on their way to files of the listener's
 	// Where the page and the sidebar are scrolled, kept while Now Playing
 	// covers them, unbuilt.
 	pageScroll ui.ScrollState
@@ -373,6 +373,7 @@ func Run() error {
 		}
 	}
 	a := &app{
+		downloads:   &dlManager{},
 		signInOver:  new(atomic.Pointer[mygo.Window]),
 		settingText: map[string]*string{},
 		lyricAt:     -1,
@@ -397,6 +398,7 @@ func Run() error {
 		a.pl = player.New(a.post)
 		a.pl.Quiet = func(fn func()) { mygo.RunOnMain(fn) }
 		a.pl.Source = a.sourceByID
+		a.pl.LocalAudio = a.localAudio
 		a.pl.Failed = a.sourceFailed
 		a.pl.Quality = func() string { return a.settings.Quality }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }

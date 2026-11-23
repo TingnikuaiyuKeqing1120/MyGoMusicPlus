@@ -120,15 +120,20 @@ func (p *Player) nativeResolve(generation, slot int) {
 	go func() {
 		var info *music.Stream
 		var err error
-		if file, stored, ok := p.Cache.find(t.Source, t.ID, quality); ok {
-			copy := *stored
-			copy.URL = music.FileURL(file.Name())
-			file.Close()
-			info = &copy
-		} else if src == nil {
-			err = errNoSource
-		} else {
-			info, err = src.Stream(t.ID, quality)
+		if p.LocalAudio != nil {
+			info = p.LocalAudio(t)
+		}
+		if info == nil {
+			if file, stored, ok := p.Cache.find(t.Source, t.ID, quality); ok {
+				copy := *stored
+				copy.URL = music.FileURL(file.Name())
+				file.Close()
+				info = &copy
+			} else if src == nil {
+				err = errNoSource
+			} else {
+				info, err = src.Stream(t.ID, quality)
+			}
 		}
 		if err == nil && (info == nil || info.URL == "") {
 			err = music.ErrUnavailable

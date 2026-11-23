@@ -33,7 +33,7 @@ func (dlSource) Stream(id, quality string) (*music.Stream, error) {
 	}
 	defer f.Close()
 	info, err := f.Stat()
-	if err != nil || !info.Mode().IsRegular() {
+	if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 {
 		return nil, music.ErrUnavailable
 	}
 	typ := strings.ToLower(strings.TrimPrefix(filepath.Ext(id), "."))
@@ -42,7 +42,11 @@ func (dlSource) Stream(id, quality string) (*music.Stream, error) {
 	default:
 		typ = "mp3"
 	}
-	return &music.Stream{URL: music.FileURL(id), Type: typ, Quality: "high", Size: info.Size()}, nil
+	quality = "high"
+	if typ == "flac" || typ == "wav" {
+		quality = "lossless"
+	}
+	return &music.Stream{URL: music.FileURL(id), Type: typ, Quality: quality, Size: info.Size()}, nil
 }
 
 // Lyrics answers the .lrc beside the file, if there is one.
@@ -56,12 +60,12 @@ func (dlSource) Lyrics(id string) (*music.Lyrics, error) {
 	return &music.Lyrics{}, nil
 }
 
-func (dlSource) Setting(string) string               { return "" }
-func (dlSource) SetSetting(string, string) error     { return music.ErrUnsupported }
-func (dlSource) SignIn() (*music.Account, error)     { return nil, music.ErrUnsupported }
-func (dlSource) SignOut() error                      { return music.ErrUnsupported }
-func (dlSource) Account() (*music.Account, error)    { return nil, nil }
-func (dlSource) Suggest(string) ([]string, error)    { return nil, music.ErrUnsupported }
+func (dlSource) Setting(string) string                { return "" }
+func (dlSource) SetSetting(string, string) error      { return music.ErrUnsupported }
+func (dlSource) SignIn() (*music.Account, error)      { return nil, music.ErrUnsupported }
+func (dlSource) SignOut() error                       { return music.ErrUnsupported }
+func (dlSource) Account() (*music.Account, error)     { return nil, nil }
+func (dlSource) Suggest(string) ([]string, error)     { return nil, music.ErrUnsupported }
 func (dlSource) Playlists() ([]music.Playlist, error) { return nil, music.ErrUnsupported }
 func (dlSource) Playlist(string) (*music.Playlist, error) {
 	return nil, music.ErrUnsupported
@@ -85,14 +89,14 @@ func (dlSource) LikeEpisode(string, bool) error            { return music.ErrUns
 func (dlSource) CreatePlaylist(string) (*music.Playlist, error) {
 	return nil, music.ErrUnsupported
 }
-func (dlSource) RenamePlaylist(string, string) error    { return music.ErrUnsupported }
-func (dlSource) DeletePlaylist(string) error            { return music.ErrUnsupported }
-func (dlSource) AddToPlaylist(string, []string) error   { return music.ErrUnsupported }
+func (dlSource) RenamePlaylist(string, string) error       { return music.ErrUnsupported }
+func (dlSource) DeletePlaylist(string) error               { return music.ErrUnsupported }
+func (dlSource) AddToPlaylist(string, []string) error      { return music.ErrUnsupported }
 func (dlSource) RemoveFromPlaylist(string, []string) error { return music.ErrUnsupported }
 func (dlSource) MovePlaylistTrack(string, int, int) error  { return music.ErrUnsupported }
-func (dlSource) SavePlaylist(string, bool) error        { return music.ErrUnsupported }
-func (dlSource) FollowArtist(string, bool) error        { return music.ErrUnsupported }
-func (dlSource) SaveAlbum(string, bool) error           { return music.ErrUnsupported }
+func (dlSource) SavePlaylist(string, bool) error           { return music.ErrUnsupported }
+func (dlSource) FollowArtist(string, bool) error           { return music.ErrUnsupported }
+func (dlSource) SaveAlbum(string, bool) error              { return music.ErrUnsupported }
 func (dlSource) SavedAlbums(int) (*music.AlbumList, error) {
 	return nil, music.ErrUnsupported
 }
@@ -130,12 +134,13 @@ var _ music.Source = dlSource{}
 // savedJobs are the songs saved to files, newest first, for the Downloaded page.
 func (m *dlManager) savedJobs() []*dlJob {
 	var out []*dlJob
-	for _, j := range m.jobs {
-		if j.status == dlDone {
+	seen := map[string]bool{}
+	for _, j := range slices.Backward(m.jobs) {
+		if j.status == dlDone && !seen[j.path] {
 			out = append(out, j)
+			seen[j.path] = true
 		}
 	}
-	slices.Reverse(out)
 	return out
 }
 

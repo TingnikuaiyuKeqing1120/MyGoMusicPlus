@@ -669,7 +669,13 @@ func (a *app) trackRow(c *ui.Context, tracks []music.Track, i int, covers bool, 
 		// A song's download shows here: on its way, failed, or saved to a
 		// file; else a song kept in the cache plays without the network.
 		offline := ui.Box(c).Width(20).Center()
-		j := a.downloads.jobFor(tr)
+		downloadTrack := *tr
+		if downloadTrack.Source == "" {
+			if lib := a.trackLib(tr); lib != nil {
+				downloadTrack.Source = lib.id
+			}
+		}
+		j := a.downloads.jobFor(&downloadTrack)
 		switch {
 		case j != nil && (j.status == dlQueued || j.status == dlDownloading):
 			offline.Label(T("Downloading"))

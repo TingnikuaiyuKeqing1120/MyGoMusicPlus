@@ -157,7 +157,11 @@ func TestDownloadPauseResume(t *testing.T) {
 		return &music.Stream{URL: srv.URL, Type: "mp3", Size: int64(len(audio))}, nil
 	}
 	path := filepath.Join(dir, "song.mp3")
-	j := &dlJob{track: song("1", "宝船", "DOUDOU"), path: path, lib: a.library, quality: "high"}
+	oldSave := saveSongAs
+	t.Cleanup(func() { saveSongAs = oldSave })
+	var dialogs atomic.Int32
+	saveSongAs = func(*app, string) string { dialogs.Add(1); return path }
+	j := &dlJob{track: song("1", "宝船", "DOUDOU"), choosePath: true, lib: a.library, quality: "high"}
 	a.downloads.add(a, j)
 	until(t, ch, func() bool { return j.done >= half })
 	a.downloads.pause(j.id)
@@ -172,6 +176,9 @@ func TestDownloadPauseResume(t *testing.T) {
 	until(t, ch, func() bool { return j.status == dlDone })
 	if ranged.Load() != 1 {
 		t.Errorf("asked for the rest %d times, want one Range request", ranged.Load())
+	}
+	if dialogs.Load() != 1 {
+		t.Errorf("pause/resume reopened the save dialog: %d calls", dialogs.Load())
 	}
 	if b, _ := os.ReadFile(path); !bytes.Equal(b, audio) {
 		t.Errorf("resumed to %d bytes, want the whole %d", len(b), len(audio))

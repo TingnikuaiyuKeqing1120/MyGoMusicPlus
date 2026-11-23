@@ -60,6 +60,12 @@ func (p *Player) getAhead(quality string) {
 	p.ahead = a
 	go func() {
 		defer close(a.done)
+		if p.LocalAudio != nil {
+			if info := p.LocalAudio(t); info != nil {
+				a.info = info
+				return
+			}
+		}
 		info, err := src.Stream(t.ID, quality)
 		if err == nil && info == nil {
 			err = music.ErrUnavailable

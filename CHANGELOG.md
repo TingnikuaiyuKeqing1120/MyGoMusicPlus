@@ -2,6 +2,12 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+- Downloads check existing files before resolving online audio, reuse indexed copies across folders, recover matching filenames across supported audio extensions, and collapse duplicate queued requests. Completed records retain measured file sizes and survive clearing the task panel.
+- Desktop and Android playback prefer saved downloads, then uniquely matching local-library recordings with complete credits. The queue retains the original song identity for playlists, likes and listening history. Missing files fall back to the original source.
+- Batch download identities include the source. Different songs with colliding generated filenames receive distinct names.
+
 ## [0.5.1] - 2026-11-21
 
 - Desktop and Android GitHub sync retain rotating refresh tokens, renew expiring sign-ins before API requests and retry a rejected request once. Temporary renewal failures remain retryable, and rejected refresh tokens prompt for sign-in.
